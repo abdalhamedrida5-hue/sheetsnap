@@ -421,7 +421,7 @@ function render(){
     }
     t.appendChild(tr);
   });
-  $('dims').textContent=`${grid.length} صف × ${W} عمود`;
+  $('dims').textContent=LANG==='en'?`${grid.length} rows × ${W} columns`:`${grid.length} صف × ${W} عمود`;
 }
 function colName(i){let s='';i++;while(i>0){const m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=Math.floor((i-1)/26)}return s}
 $('addRow').onclick=()=>{grid.push(new Array(Math.max(1,grid[0]?.length||1)).fill(''));render()};
