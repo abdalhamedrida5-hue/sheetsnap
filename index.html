@@ -305,6 +305,12 @@ function enhance(c){
   x.putImageData(id,0,0);return c;
 }
 
+function upscale(c){
+  const m=Math.max(c.width,c.height),T=2600;
+  if(m>=T*0.85)return c;
+  const k=Math.min(2.5,T/m),o=document.createElement('canvas');o.width=Math.round(c.width*k);o.height=Math.round(c.height*k);
+  const x=o.getContext('2d');x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';x.drawImage(c,0,0,o.width,o.height);return o;
+}
 function deskew(c){
   // estimate page tilt from the dark pixels of a small, cleaned copy, then rotate
   const k=Math.min(1,900/Math.max(c.width,c.height));
@@ -336,7 +342,7 @@ $('rotR').onclick=()=>{rot=(rot+1)%4;draw()};
 
 /* ---------- OCR ---------- */
 const status=(t,cls)=>{$('status').className='status '+(cls||'');$('status').textContent=t};
-let worker=null,workerLang=null;
+let worker=null,workerLang=null,dWorker=null;const LANGPATH=undefined;
 $('go').onclick=async()=>{
   if(used()>=FREE_PER_DAY){const m=$('limitMsg');m.textContent=T('وصلت للحد المجاني النهارده (5 صفحات). جرب بكرة، أو استنى باقة Pro.');m.style.display='block';$('pricing').scrollIntoView({behavior:'smooth'});return}
   if(typeof Tesseract==='undefined'){status(T('مكتبة القراءة ما اتحملتش. تأكد من النت وجرب تاني.'),'err');return}
@@ -346,7 +352,7 @@ $('go').onclick=async()=>{
     if(!worker||workerLang!==lang){
       if(worker)await worker.terminate();
       status(T('بحمّل نموذج القراءة...'));
-      worker=await Tesseract.createWorker(lang,1,{logger:m=>{
+      worker=await Tesseract.createWorker(lang,1,{langPath:LANGPATH,logger:m=>{
         if(m.status){const p=Math.round((m.progress||0)*100);
           $('barI').style.width=Math.max(3,p)+'%';
           status(T(m.status.includes('recogniz')?'بقرأ الورقة ':'جاري التحضير ')+p+'%')}}});
@@ -361,17 +367,31 @@ $('go').onclick=async()=>{
         $('queue').textContent=`${i+1} / ${total}: ${files[i].name}`;
       }
       if(total>1)status((LANG==='en'?'Page ':'صفحة ')+(i+1)+' / '+total);
-      let c=deskew(base());if($('enh').checked)c=enhance(c);
+      let c=upscale(deskew(base()));if($('enh').checked)c=enhance(c);
       const res=await worker.recognize(c,{},{blocks:true,text:true});
       const d=res.data;
       let ws=[];
       if(d.words&&d.words.length)ws=d.words;
       else if(d.blocks)for(const b of d.blocks)for(const p of b.paragraphs)for(const l of p.lines)for(const w of l.words)ws.push(w);
       words=ws.map(w=>({t:(w.text||'').replace(/[\u200e\u200f\u202a-\u202e]/g,'').trim(),c:w.confidence,x0:w.bbox.x0,x1:w.bbox.x1,y0:w.bbox.y0,y1:w.bbox.y1})).filter(w=>w.t&&w.c>25&&/[\p{L}\p{N}]/u.test(w.t)&&!(w.t.length<2&&w.c<55&&!/\d/.test(w.t))).map(w=>({t:w.t.replace(/^[|¦\[\]]+|[|¦\[\]]+$/g,''),x0:w.x0,x1:w.x1,y0:w.y0,y1:w.y1})).filter(w=>w.t);
+      try{
+        const cand=words.filter(w=>/^[\d\u0660-\u0669.,\u066B\u066C]{3,}$/.test(w.t)&&!/[.,\u066B\u066C]/.test(w.t));
+        if(cand.length){
+          if(!dWorker)dWorker=await Tesseract.createWorker('eng',1,{});
+          await dWorker.setParameters({tessedit_char_whitelist:'0123456789.,%-',tessedit_pageseg_mode:'7'});
+          for(const w of cand){
+            const pad=Math.round((w.y1-w.y0)*0.35),x0=Math.max(0,w.x0-pad),y0=Math.max(0,w.y0-pad),cw=Math.min(c.width,w.x1+pad)-x0,ch=Math.min(c.height,w.y1+pad)-y0;
+            const cc=document.createElement('canvas');cc.width=cw+40;cc.height=ch+40;const g=cc.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,cc.width,cc.height);g.drawImage(c,x0,y0,cw,ch,20,20,cw,ch);
+            const r=await dWorker.recognize(cc);const t=(r.data.text||'').trim().replace(/\s/g,'');
+            if(/^\d+[.,]\d{1,2}$/.test(t)&&t.replace(/\D/g,'')===w.t.replace(/\D/g,'')+'' ||/^\d+[.,]\d{1,2}$/.test(t)&&r.data.confidence>70)w.t=t;
+          }
+        }
+      }catch(e){console.log('digitpass',e)}
       $('raw').textContent=(i>startI?$('raw').textContent+'\n':'')+(d.text||'');
       if(!words.length){if(total===1){status(T('ما لقيتش نص. جرب تلف الصورة أو تقرب أكتر.'),'err');return}continue}
       const arCount=words.filter(w=>AR.test(w.t)).length,laCount=words.filter(w=>/[A-Za-z]/.test(w.t)).length;
       if(i===startI)$('rtl').checked=arCount>laCount;
+      if(arCount>laCount)words=words.filter(w=>!(/^[A-Za-z|¦_~.\-]{1,3}$/.test(w.t)&&w.t!==w.t.toUpperCase()));
       buildGrid(i===startI?(!$('append').checked||!grid.length):false);
       $('stepOut').style.display='';
       bump();meter();doneAny=true;
@@ -454,6 +474,7 @@ function asNum(s){
   if(!$('nums').checked)return null;
   const t=normDigits(String(s)).trim().replace(/\s/g,'');
   if(/^[-+]?(\d{1,3}(,\d{3})+|\d+)(\.\d+)?$/.test(t))return parseFloat(t.replace(/,/g,''));
+  if(/^[-+]?\d{1,3}(,\d{1,2})$/.test(t)||/^[-+]?\d+,\d{1,2}$/.test(t))return parseFloat(t.replace(',','.'));
   return null;
 }
 function render(){
