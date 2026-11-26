@@ -342,7 +342,7 @@ $('rotR').onclick=()=>{rot=(rot+1)%4;draw()};
 
 /* ---------- OCR ---------- */
 const status=(t,cls)=>{$('status').className='status '+(cls||'');$('status').textContent=t};
-let worker=null,workerLang=null,dWorker=null;const LANGPATH=undefined;
+let worker=null,workerLang=null,dWorker=null,aWorker=null,eWorker=null;const LANGPATH=undefined;
 $('go').onclick=async()=>{
   if(used()>=FREE_PER_DAY){const m=$('limitMsg');m.textContent=T('وصلت للحد المجاني النهارده (5 صفحات). جرب بكرة، أو استنى باقة Pro.');m.style.display='block';$('pricing').scrollIntoView({behavior:'smooth'});return}
   if(typeof Tesseract==='undefined'){status(T('مكتبة القراءة ما اتحملتش. تأكد من النت وجرب تاني.'),'err');return}
@@ -373,7 +373,37 @@ $('go').onclick=async()=>{
       let ws=[];
       if(d.words&&d.words.length)ws=d.words;
       else if(d.blocks)for(const b of d.blocks)for(const p of b.paragraphs)for(const l of p.lines)for(const w of l.words)ws.push(w);
-      words=ws.map(w=>({t:(w.text||'').replace(/[\u200e\u200f\u202a-\u202e]/g,'').trim(),c:w.confidence,x0:w.bbox.x0,x1:w.bbox.x1,y0:w.bbox.y0,y1:w.bbox.y1})).filter(w=>w.t&&w.c>25&&/[\p{L}\p{N}]/u.test(w.t)&&!(w.t.length<2&&w.c<55&&!/\d/.test(w.t))).map(w=>({t:w.t.replace(/^[|¦\[\]]+|[|¦\[\]]+$/g,''),x0:w.x0,x1:w.x1,y0:w.y0,y1:w.y1})).filter(w=>w.t);
+      words=ws.map(w=>({t:(w.text||'').replace(/[\u200e\u200f\u202a-\u202e]/g,'').trim(),c:w.confidence,x0:w.bbox.x0,x1:w.bbox.x1,y0:w.bbox.y0,y1:w.bbox.y1})).filter(w=>w.t&&w.c>25&&/[\p{L}\p{N}]/u.test(w.t)&&!(w.t.length<2&&w.c<55&&!/\d/.test(w.t))).map(w=>({t:w.t.replace(/^[|¦\[\]]+|[|¦\[\]]+$/g,''),c:w.c,x0:w.x0,x1:w.x1,y0:w.y0,y1:w.y1})).filter(w=>w.t);
+      /* second look: on mixed Arabic/English pages, re-read doubtful words alone with each model and keep the most confident reading */
+      try{
+        if(lang==='ara+eng'){
+          const arN=words.filter(w=>AR.test(w.t)).length;
+          const sus=words.filter(w=>{
+            const lat=/[A-Za-z€£$]/.test(w.t),ar=AR.test(w.t),dig=/\d/.test(w.t);
+            if(/^[\d٠-٩.,\/\-%:]+$/.test(w.t))return false;          // pure numbers: handled by the digit pass
+            if(lat&&/^[A-Z0-9\-]{2,}$/.test(w.t)&&w.c>=70)return false;         // confident codes like PVC, LED
+            return (arN>words.length/3&&lat)||(ar&&(dig||lat))||w.c<60;
+          }).slice(0,60);
+          if(sus.length){
+            status(T('براجع الكلمات المش واضحة...'));
+            if(!aWorker)aWorker=await Tesseract.createWorker('ara',1,{});
+            if(!eWorker)eWorker=await Tesseract.createWorker('eng',1,{});
+            await aWorker.setParameters({tessedit_pageseg_mode:'7'});
+            await eWorker.setParameters({tessedit_pageseg_mode:'7'});
+            for(const w of sus){
+              const pad=Math.round((w.y1-w.y0)*0.3),x0=Math.max(0,w.x0-pad),y0=Math.max(0,w.y0-pad),cw=Math.min(c.width,w.x1+pad)-x0,ch=Math.min(c.height,w.y1+pad)-y0;
+              if(cw<4||ch<4)continue;
+              const cc=document.createElement('canvas');cc.width=cw+40;cc.height=ch+40;const g=cc.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,cc.width,cc.height);g.drawImage(c,x0,y0,cw,ch,20,20,cw,ch);
+              let best={t:w.t,c:w.c};
+              for(const wk of [aWorker,eWorker]){
+                const r=(await wk.recognize(cc)).data,t=(r.text||'').replace(/[‎‏‪-‮]/g,'').replace(/\s+/g,' ').trim();
+                if(t&&/[\p{L}\p{N}]/u.test(t)&&r.confidence>best.c+8)best={t,c:r.confidence};
+              }
+              w.t=best.t;w.c=best.c;
+            }
+          }
+        }
+      }catch(e){console.log('secondlook',e)}
       try{
         const cand=words.filter(w=>/^[\d\u0660-\u0669.,\u066B\u066C]{3,}$/.test(w.t)&&!/[.,\u066B\u066C]/.test(w.t));
         if(cand.length){
@@ -456,7 +486,7 @@ function reconstruct(ws,gapK,rtl){
 }
 function buildGrid(replace){
   let g=reconstruct(words,parseFloat($('gap').value),$('rtl').checked);
-  g=g.filter(r=>r.some(c=>c&&c.trim()));
+  g=g.filter(r=>r.join('').replace(/\s/g,'').length>1);   // drop empty rows and stray single marks
   if(g.length){const W=Math.max(...g.map(r=>r.length));g.forEach(r=>{while(r.length<W)r.push('')});
     const keep=[];for(let j=0;j<W;j++)if(g.some(r=>r[j]&&r[j].trim()))keep.push(j);
     g=g.map(r=>keep.map(j=>r[j]))}
@@ -510,6 +540,15 @@ $('mergeUp').onclick=()=>{
 };
 
 /* ---------- export ---------- */
+function numFmt(s){
+  if(asNum(s)===null)return null;
+  const t=normDigits(String(s)).trim().replace(/\s/g,'');
+  const m=t.match(/[.,](\d{1,2})$/);
+  const grouped=/\d,\d{3}(?![\d])/.test(t)&&!/,\d{1,2}$/.test(t);
+  const dec=m&&!(m[0][0]===','&&/,\d{3}$/.test(t))?m[1].length:0;
+  if(!dec&&!grouped)return null;
+  return (grouped?'#,##0':'0')+(dec?'.'+'0'.repeat(dec):'');
+}
 function exportRows(){
   return grid.map(r=>r.map(v=>{const n=asNum(v);return n!==null?n:(v??'')}));
 }
@@ -522,6 +561,8 @@ $('dl').onclick=()=>{
   const rows=exportRows();
   const ws=XLSX.utils.aoa_to_sheet(rows);
   const W=Math.max(0,...rows.map(r=>r.length));
+  // keep decimals exactly as printed (45.50 stays 45.50, 2,305.08 keeps its comma)
+  grid.forEach((r,ri)=>r.forEach((v,ci)=>{const z=numFmt(v),cell=ws[XLSX.utils.encode_cell({r:ri,c:ci})];if(z&&cell&&cell.t==='n')cell.z=z}));
   ws['!cols']=Array.from({length:W},(_,i)=>({wch:Math.min(50,Math.max(8,...rows.map(r=>String(r[i]??'').length))+2)}));
   const wb=XLSX.utils.book_new();
   if($('rtl').checked)wb.Workbook={Views:[{RTL:true}]};
@@ -560,7 +601,7 @@ const EN={"الصورة":"Image","اسحب صورة هنا، أو اختار م�
 "تمام: ":"Done: ","كلمة اتقرأت.":"words read.","بقرأ الورقة ":"Reading the page ","جاري التحضير ":"Preparing ","بحمّل نموذج القراءة...":"Loading the reading model...",
 "ما لقيتش نص. جرب تلف الصورة أو تقرب أكتر.":"No text found. Try rotating the image or moving closer.","حصلت مشكلة: ":"Problem: ",
 "مكتبة القراءة ما اتحملتش. تأكد من النت وجرب تاني.":"The reading library did not load. Check your internet and try again.",
-"اتنسخ. الصقه في إكسل.":"Copied. Paste it into Excel.","المتصفح منع النسخ.":"The browser blocked copying.",
+"براجع الكلمات المش واضحة...":"Double-checking unclear words...","اتنسخ. الصقه في إكسل.":"Copied. Paste it into Excel.","المتصفح منع النسخ.":"The browser blocked copying.",
 "وصلت للحد المجاني النهارده (5 صفحات). جرب بكرة، أو استنى باقة Pro.":"You reached today's free limit (5 pages). Try tomorrow, or wait for Pro."};
 let LANG=(()=>{try{return localStorage.getItem('ss_lang')}catch(e){return null}})()||((navigator.language||'').startsWith('ar')?'ar':'en');
 const T=ar=>LANG==='en'&&EN[ar]?EN[ar]:ar;
