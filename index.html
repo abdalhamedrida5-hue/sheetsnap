@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ورقة لإكسل | Paper to Excel</title>
+<style>
+:root{--bg:#0f1720;--card:#17212d;--line:#263445;--tx:#e8eef5;--mute:#8fa2b7;--ac:#22c997;--ac2:#1aa57b;--warn:#f5b84b;--bad:#ff6b6b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Tahoma,Arial,sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:20px 16px 80px}
+header{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--ac),#2b8cff);display:grid;place-items:center;font-weight:800;color:#06251c}
+h1{font-size:22px;margin:0}
+.sub{color:var(--mute);margin:0 0 20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:16px}
+.card h2{font-size:15px;margin:0 0 12px;color:var(--mute);font-weight:600;display:flex;gap:8px;align-items:center}
+.num{background:var(--ac);color:#06251c;border-radius:50%;width:22px;height:22px;display:inline-grid;place-items:center;font-size:12px;font-weight:800}
+.drop{border:2px dashed #35506b;border-radius:14px;padding:26px 14px;text-align:center;transition:.15s}
+.drop.over{border-color:var(--ac);background:#1b2c38}
+.btns{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:12px}
+button,.btn{font:inherit;cursor:pointer;border:1px solid var(--line);background:#203042;color:var(--tx);padding:10px 16px;border-radius:10px;display:inline-flex;gap:8px;align-items:center}
+button:hover,.btn:hover{border-color:#456583}
+button.pri{background:var(--ac);border-color:var(--ac);color:#06251c;font-weight:700}
+button.pri:hover{background:var(--ac2)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.small{padding:6px 10px;font-size:13px;border-radius:8px}
+input[type=file]{display:none}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:800px){.grid{grid-template-columns:1fr}}
+.preview{background:#0b1118;border-radius:12px;min-height:160px;display:grid;place-items:center;overflow:hidden}
+.preview canvas,.preview img,.preview video{max-width:100%;max-height:420px;display:block}
+.opts{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:center;margin-top:12px;color:var(--mute);font-size:14px}
+.opts label{display:flex;align-items:center;gap:6px}
+select,input[type=range]{accent-color:var(--ac)}
+select{background:#203042;color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:inherit}
+.bar{height:8px;background:#0b1118;border-radius:6px;overflow:hidden;margin-top:12px;display:none}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--ac),#2b8cff);transition:width .2s}
+.status{color:var(--mute);font-size:14px;margin-top:8px;min-height:20px}
+.tablewrap{overflow:auto;max-height:520px;border:1px solid var(--line);border-radius:10px;background:#0f1720}
+table{border-collapse:collapse;width:100%;direction:ltr}
+td,th{border:1px solid var(--line);padding:6px 8px;min-width:90px;vertical-align:top;white-space:pre-wrap}
+td[contenteditable]:focus{outline:2px solid var(--ac);background:#14252b}
+th{background:#1d2b3a;font-size:12px;color:var(--mute);position:sticky;top:0;text-align:center}
+td.rn{background:#1d2b3a;color:var(--mute);min-width:36px;text-align:center;font-size:12px}
+td.numc{color:#8fd8ff}
+.bar2{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.empty{color:var(--mute);padding:26px;text-align:center}
+.hint{font-size:13px;color:var(--mute);margin-top:10px}
+.tag{font-size:12px;background:#203042;border-radius:20px;padding:2px 10px;color:var(--mute)}
+#camBox{display:none;margin-top:14px}
+footer{color:var(--mute);font-size:12px;text-align:center;margin-top:30px}
+.err{color:var(--bad)}
+.ok{color:var(--ac)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><div class="logo">XL</div><div><h1>من الورقة لإكسل</h1></div></header>
+<p class="sub">صوّر أي ورقة مطبوعة (فاتورة، جدول، كشف) واستلم ملف إكسل جاهز. المعالجة كلها على جهازك، مفيش صورة بتترفع لأي سيرفر.</p>
+
+<div class="card">
+  <h2><span class="num">1</span> الصورة</h2>
+  <div class="drop" id="drop">
+    <div>اسحب صورة هنا، أو اختار من الأزرار</div>
+    <div class="btns">
+      <label class="btn pri" for="fCam">📷 صوّر بالكاميرا</label>
+      <label class="btn" for="fUp">🖼️ اختار صورة / أكتر</label>
+      <button id="btnLive" type="button">🎥 كاميرا مباشرة</button>
+    </div>
+    <input id="fCam" type="file" accept="image/*" capture="environment">
+    <input id="fUp" type="file" accept="image/*" multiple>
+  </div>
+  <div id="camBox">
+    <div class="preview"><video id="video" playsinline muted></video></div>
+    <div class="btns"><button id="snap" class="pri" type="button">التقط</button><button id="camClose" type="button">إغلاق</button></div>
+  </div>
+  <div id="queue" class="hint"></div>
+</div>
+
+<div class="card" id="stepProc" style="display:none">
+  <h2><span class="num">2</span> تجهيز الصورة والقراءة</h2>
+  <div class="grid">
+    <div><div class="preview"><canvas id="cv"></canvas></div>
+      <div class="btns"><button class="small" id="rotL" type="button">↺ لف يسار</button><button class="small" id="rotR" type="button">↻ لف يمين</button></div></div>
+    <div>
+      <div class="opts" style="margin-top:0">
+        <label>لغة الورقة
+          <select id="lang">
+            <option value="ara+eng" selected>عربي + إنجليزي</option>
+            <option value="eng">إنجليزي</option>
+            <option value="ara">عربي</option>
+          </select></label>
+        <label><input type="checkbox" id="enh" checked> تحسين الصورة (تباين وتبييض الخلفية)</label>
+        <label><input type="checkbox" id="append"> ضيف على نفس الشيت</label>
+      </div>
+      <div class="btns" style="justify-content:flex-start"><button class="pri" id="go" type="button">⚡ حوّل لجدول</button></div>
+      <div class="bar" id="bar"><i id="barI"></i></div>
+      <div class="status" id="status"></div>
+      <div class="hint">أول مرة بتحمّل نموذج القراءة (بضع ميجا) وبعدها بيتخزن في المتصفح. محتاج نت للتحميل الأول.</div>
+    </div>
+  </div>
+</div>
+
+<div class="card" id="stepOut" style="display:none">
+  <h2><span class="num">3</span> راجع وعدّل وصدّر</h2>
+  <div class="opts" style="margin:0 0 12px">
+    <label>حساسية الأعمدة <input type="range" id="gap" min="0.6" max="3.5" step="0.1" value="1.6"></label>
+    <label><input type="checkbox" id="rtl"> الورقة من اليمين لليسار</label>
+    <label><input type="checkbox" id="nums" checked> حوّل الأرقام لأرقام فعلية</label>
+  </div>
+  <div class="bar2">
+    <button class="small" id="addRow" type="button">+ صف</button>
+    <button class="small" id="addCol" type="button">+ عمود</button>
+    <button class="small" id="delRow" type="button">− آخر صف</button>
+    <button class="small" id="delCol" type="button">− آخر عمود</button>
+    <button class="small" id="mergeUp" type="button">ادمج الصف مع اللي فوقه</button>
+    <span class="tag" id="dims"></span>
+  </div>
+  <div class="tablewrap"><table id="tbl"></table></div>
+  <div class="hint">اضغط على أي خلية وعدّلها. "ادمج الصف" بيشتغل على آخر خلية اخترتها.</div>
+  <div class="btns" style="justify-content:flex-start;margin-top:14px">
+    <button class="pri" id="dl" type="button">⬇️ نزّل Excel (.xlsx)</button>
+    <button id="csv" type="button">نزّل CSV</button>
+    <button id="copy" type="button">انسخ للحافظة</button>
+  </div>
+  <details style="margin-top:12px"><summary class="hint">النص الخام اللي اتقرأ</summary><pre id="raw" style="white-space:pre-wrap;color:var(--mute)"></pre></details>
+</div>
+<footer>OCR: Tesseract.js · Excel: SheetJS · كله بيشتغل في المتصفح</footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.mini.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+let files=[],cur=0,srcBmp=null,rot=0,words=[],grid=[],selRow=0,cache=null;
+const AR=/[\u0600-\u06FF]/;
+
+/* ---------- input ---------- */
+function addFiles(list){
+  const fs=[...list].filter(f=>f.type.startsWith('image/'));
+  if(!fs.length)return;
+  files=fs;cur=0;loadCurrent();
+}
+async function loadCurrent(){
+  const f=files[cur];
+  try{srcBmp=await createImageBitmap(f,{imageOrientation:'from-image'});}
+  catch(e){const im=new Image();im.src=URL.createObjectURL(f);await im.decode();srcBmp=im;}
+  rot=0;words=[];
+  $('queue').textContent=files.length>1?`صورة ${cur+1} من ${files.length}: ${f.name}`:f.name;
+  $('stepProc').style.display='';
+  draw();
+  $('stepProc').scrollIntoView({behavior:'smooth'});
+}
+$('fCam').onchange=e=>addFiles(e.target.files);
+$('fUp').onchange=e=>addFiles(e.target.files);
+const drop=$('drop');
+['dragover','dragenter'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over')}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over')}));
+drop.addEventListener('drop',e=>addFiles(e.dataTransfer.files));
+addEventListener('paste',e=>{const fs=[...e.clipboardData.files];if(fs.length)addFiles(fs)});
+
+/* live camera */
+let stream=null;
+$('btnLive').onclick=async()=>{
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:3000},height:{ideal:3000}}});
+    $('video').srcObject=stream;await $('video').play();$('camBox').style.display='block';
+  }catch(e){alert('الكاميرا مش متاحة: '+e.message+'\nاستخدم زرار "صوّر بالكاميرا".')}
+};
+function closeCam(){if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;$('camBox').style.display='none'}
+$('camClose').onclick=closeCam;
+$('snap').onclick=()=>{
+  const v=$('video'),c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;
+  c.getContext('2d').drawImage(v,0,0);
+  c.toBlob(b=>{closeCam();addFiles([new File([b],'camera.jpg',{type:'image/jpeg'})])},'image/jpeg',.95);
+};
+
+/* ---------- image prep ---------- */
+function base(){
+  const MAX=2800;let w=srcBmp.width,h=srcBmp.height;
+  const k=Math.min(1,MAX/Math.max(w,h));w=Math.round(w*k);h=Math.round(h*k);
+  const sw=rot%2?h:w,sh=rot%2?w:h;
+  const c=document.createElement('canvas');c.width=sw;c.height=sh;
+  const x=c.getContext('2d');x.translate(sw/2,sh/2);x.rotate(rot*Math.PI/2);x.drawImage(srcBmp,-w/2,-h/2,w,h);
+  return c;
+}
+function enhance(c){
+  const w=c.width,h=c.height,x=c.getContext('2d'),id=x.getImageData(0,0,w,h),d=id.data;
+  const g=new Uint8ClampedArray(w*h);
+  for(let i=0,j=0;i<d.length;i+=4,j++)g[j]=.299*d[i]+.587*d[i+1]+.114*d[i+2];
+  // background normalisation: divide by blurred (box) version, via integral image
+  const I=new Float64Array((w+1)*(h+1));
+  for(let y=0;y<h;y++){let s=0;for(let xx=0;xx<w;xx++){s+=g[y*w+xx];I[(y+1)*(w+1)+xx+1]=I[y*(w+1)+xx+1]+s}}
+  const r=Math.max(15,Math.round(Math.min(w,h)/18));
+  for(let y=0;y<h;y++){
+    const y0=Math.max(0,y-r),y1=Math.min(h,y+r+1);
+    for(let xx=0;xx<w;xx++){
+      const x0=Math.max(0,xx-r),x1=Math.min(w,xx+r+1);
+      const area=(x1-x0)*(y1-y0);
+      const m=(I[y1*(w+1)+x1]-I[y0*(w+1)+x1]-I[y1*(w+1)+x0]+I[y0*(w+1)+x0])/area;
+      let v=g[y*w+xx]/Math.max(m,1)*235;
+      v=v>255?255:v;
+      // contrast curve
+      v=v>200?255:v<110?v*.6:(v-110)*(255-66)/90+66;
+      const o=(y*w+xx)*4;d[o]=d[o+1]=d[o+2]=v;
+    }
+  }
+  // remove long ruling lines (table borders) so they don't confuse OCR
+  const bin=new Uint8Array(w*h);
+  for(let j=0;j<w*h;j++)bin[j]=d[j*4]<140?1:0;
+  const L=Math.max(40,Math.round(Math.max(w,h)/40));
+  const kill=new Uint8Array(w*h);
+  for(let y=0;y<h;y++){let s=-1;for(let xx=0;xx<=w;xx++){const on=xx<w&&bin[y*w+xx];
+    if(on&&s<0)s=xx;if(!on&&s>=0){if(xx-s>=L)for(let k=s;k<xx;k++)kill[y*w+k]=1;s=-1}}}
+  for(let xx=0;xx<w;xx++){let s=-1;for(let y=0;y<=h;y++){const on=y<h&&bin[y*w+xx];
+    if(on&&s<0)s=y;if(!on&&s>=0){if(y-s>=L)for(let k=s;k<y;k++)kill[k*w+xx]=1;s=-1}}}
+  for(let j=0;j<w*h;j++)if(kill[j]){
+    // also clear 1px neighbours of the line to remove anti-aliased edges
+    for(const o of [0,1,-1,w,-w]){const q=j+o;if(q>=0&&q<w*h&&d[q*4]<200&&kill[q]!==0||o===0){const t=(q>=0&&q<w*h?q:j)*4;d[t]=d[t+1]=d[t+2]=255}}
+  }
+  x.putImageData(id,0,0);return c;
+}
+function draw(){
+  const c=base();const cv=$('cv');cv.width=c.width;cv.height=c.height;cv.getContext('2d').drawImage(c,0,0);
+}
+$('rotL').onclick=()=>{rot=(rot+3)%4;draw()};
+$('rotR').onclick=()=>{rot=(rot+1)%4;draw()};
+
+/* ---------- OCR ---------- */
+const status=(t,cls)=>{$('status').className='status '+(cls||'');$('status').textContent=t};
+let worker=null,workerLang=null;
+$('go').onclick=async()=>{
+  if(typeof Tesseract==='undefined'){status('مكتبة القراءة ما اتحملتش. تأكد من النت وجرب تاني.','err');return}
+  $('go').disabled=true;$('bar').style.display='block';$('barI').style.width='2%';
+  try{
+    const lang=$('lang').value;
+    if(!worker||workerLang!==lang){
+      if(worker)await worker.terminate();
+      status('بحمّل نموذج القراءة...');
+      worker=await Tesseract.createWorker(lang,1,{logger:m=>{
+        if(m.status){const p=Math.round((m.progress||0)*100);
+          $('barI').style.width=Math.max(3,p)+'%';
+          status((m.status.includes('recogniz')?'بقرأ الورقة ':'جاري التحضير ')+p+'%')}}});
+      await worker.setParameters({tessedit_pageseg_mode:'6',preserve_interword_spaces:'1',user_defined_dpi:'300'});
+      workerLang=lang;
+    }
+    let c=base();if($('enh').checked)c=enhance(c);
+    const res=await worker.recognize(c,{},{blocks:true,text:true});
+    const d=res.data;
+    let ws=[];
+    if(d.words&&d.words.length)ws=d.words;
+    else if(d.blocks)for(const b of d.blocks)for(const p of b.paragraphs)for(const l of p.lines)for(const w of l.words)ws.push(w);
+    words=ws.filter(w=>w.text&&w.text.trim()&&w.confidence>25).map(w=>({t:w.text.trim(),x0:w.bbox.x0,x1:w.bbox.x1,y0:w.bbox.y0,y1:w.bbox.y1}));
+    $('raw').textContent=d.text||'';
+    if(!words.length){status('ما لقيتش نص. جرب تلف الصورة أو تقرب أكتر.','err');return}
+    const arCount=words.filter(w=>AR.test(w.t)).length;
+    $('rtl').checked=arCount>words.length*0.5;
+    buildGrid(!$('append').checked||!grid.length);
+    $('stepOut').style.display='';$('stepOut').scrollIntoView({behavior:'smooth'});
+    status(`تمام: ${words.length} كلمة اتقرأت.`,'ok');
+    $('barI').style.width='100%';
+  }catch(e){console.error(e);status('حصلت مشكلة: '+(e.message||e),'err')}
+  finally{$('go').disabled=false;setTimeout(()=>$('bar').style.display='none',800)}
+};
+
+/* ---------- table reconstruction ---------- */
+function median(a){const s=[...a].sort((x,y)=>x-y);return s[Math.floor(s.length/2)]||1}
+function reconstruct(ws,gapK,rtl){
+  const mh=median(ws.map(w=>w.y1-w.y0));
+  const sorted=[...ws].sort((a,b)=>(a.y0+a.y1)-(b.y0+b.y1));
+  const lines=[];
+  for(const w of sorted){
+    const cy=(w.y0+w.y1)/2;
+    const L=lines.find(l=>Math.abs(l.cy-cy)<mh*.55);
+    if(L){L.w.push(w);L.cy=L.w.reduce((s,q)=>s+(q.y0+q.y1)/2,0)/L.w.length}
+    else lines.push({cy,w:[w]});
+  }
+  lines.sort((a,b)=>a.cy-b.cy);
+  const thr=mh*gapK;
+  const rows=lines.map(l=>{
+    l.w.sort((a,b)=>a.x0-b.x0);
+    const cells=[];let c=null;
+    for(const w of l.w){
+      if(c&&w.x0-c.x1<=thr){c.ws.push(w);c.x1=Math.max(c.x1,w.x1)}
+      else{c={x0:w.x0,x1:w.x1,ws:[w]};cells.push(c)}
+    }
+    for(const c of cells){
+      const ordered=(rtl&&c.ws.some(q=>AR.test(q.t)))?[...c.ws].reverse():c.ws;
+      c.text=ordered.map(q=>q.t).join(' ');
+    }
+    return cells;
+  });
+  // column intervals from rows with 2+ cells
+  const iv=[];
+  rows.forEach(r=>{if(r.length>=2)r.forEach(c=>iv.push([c.x0,c.x1]))});
+  if(!iv.length)rows.forEach(r=>r.forEach(c=>iv.push([c.x0,c.x1])));
+  iv.sort((a,b)=>a[0]-b[0]);
+  const cols=[];
+  for(const [a,b] of iv){
+    const last=cols[cols.length-1];
+    if(last&&a<=last[1]+thr*0.9){last[1]=Math.max(last[1],b)}else cols.push([a,b]);
+  }
+  const out=rows.map(r=>{
+    const row=new Array(cols.length).fill('');
+    for(const c of r){
+      let best=0,bo=-1e9;
+      cols.forEach((k,i)=>{const o=Math.min(k[1],c.x1)-Math.max(k[0],c.x0);if(o>bo){bo=o;best=i}});
+      row[best]=row[best]?row[best]+' '+c.text:c.text;
+    }
+    return rtl?row.reverse():row;
+  });
+  return out;
+}
+function buildGrid(replace){
+  const g=reconstruct(words,parseFloat($('gap').value),$('rtl').checked);
+  if(replace||!grid.length)grid=g;
+  else{const w=Math.max(grid[0]?.length||0,g[0]?.length||0);grid=[...grid,new Array(w).fill('')].concat(g)}
+  cache={replace};
+  render();
+}
+['gap','rtl'].forEach(id=>$(id).addEventListener('change',()=>{if(words.length){buildGrid(true)}}));
+$('nums').addEventListener('change',render);
+
+/* ---------- editable table ---------- */
+function normDigits(s){return s.replace(/[\u0660-\u0669]/g,d=>d.charCodeAt(0)-0x660).replace(/[\u06F0-\u06F9]/g,d=>d.charCodeAt(0)-0x6F0).replace(/\u066B/g,'.').replace(/\u066C/g,',')}
+function asNum(s){
+  if(!$('nums').checked)return null;
+  const t=normDigits(String(s)).trim().replace(/\s/g,'');
+  if(/^[-+]?(\d{1,3}(,\d{3})+|\d+)(\.\d+)?$/.test(t))return parseFloat(t.replace(/,/g,''));
+  return null;
+}
+function render(){
+  const t=$('tbl');t.innerHTML='';
+  const W=Math.max(0,...grid.map(r=>r.length));
+  const hr=document.createElement('tr');hr.innerHTML='<th></th>'+Array.from({length:W},(_,i)=>`<th>${colName(i)}</th>`).join('');
+  t.appendChild(hr);
+  grid.forEach((r,ri)=>{
+    const tr=document.createElement('tr');
+    const n=document.createElement('td');n.className='rn';n.textContent=ri+1;tr.appendChild(n);
+    for(let ci=0;ci<W;ci++){
+      const td=document.createElement('td');td.contentEditable='true';td.textContent=r[ci]??'';
+      if(asNum(r[ci]??'')!==null)td.className='numc';
+      td.dir='auto';td.style.textAlign='start';
+      td.addEventListener('input',()=>{grid[ri][ci]=td.textContent});
+      td.addEventListener('focus',()=>{selRow=ri});
+      tr.appendChild(td);
+    }
+    t.appendChild(tr);
+  });
+  $('dims').textContent=`${grid.length} صف × ${W} عمود`;
+}
+function colName(i){let s='';i++;while(i>0){const m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=Math.floor((i-1)/26)}return s}
+$('addRow').onclick=()=>{grid.push(new Array(Math.max(1,grid[0]?.length||1)).fill(''));render()};
+$('addCol').onclick=()=>{grid.forEach(r=>r.push(''));if(!grid.length)grid=[['']];render()};
+$('delRow').onclick=()=>{grid.pop();render()};
+$('delCol').onclick=()=>{grid.forEach(r=>r.pop());render()};
+$('mergeUp').onclick=()=>{
+  if(selRow<1)return;
+  const a=grid[selRow-1],b=grid[selRow];
+  grid[selRow-1]=a.map((v,i)=>[v,b[i]].filter(Boolean).join(' '));
+  grid.splice(selRow,1);selRow=Math.max(0,selRow-1);render();
+};
+
+/* ---------- export ---------- */
+function exportRows(){
+  return grid.map(r=>r.map(v=>{const n=asNum(v);return n!==null?n:(v??'')}));
+}
+function stamp(){const d=new Date(),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`}
+function saveBlob(blob,name){
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000);
+}
+$('dl').onclick=()=>{
+  const rows=exportRows();
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  const W=Math.max(0,...rows.map(r=>r.length));
+  ws['!cols']=Array.from({length:W},(_,i)=>({wch:Math.min(50,Math.max(8,...rows.map(r=>String(r[i]??'').length))+2)}));
+  const wb=XLSX.utils.book_new();
+  if($('rtl').checked)wb.Workbook={Views:[{RTL:true}]};
+  XLSX.utils.book_append_sheet(wb,ws,'Sheet1');
+  const out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+  saveBlob(new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`scan-${stamp()}.xlsx`);
+};
+$('csv').onclick=()=>{
+  const q=v=>{v=String(v??'');return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+  const s='\ufeff'+exportRows().map(r=>r.map(q).join(',')).join('\r\n');
+  saveBlob(new Blob([s],{type:'text/csv;charset=utf-8'}),`scan-${stamp()}.csv`);
+};
+$('copy').onclick=async()=>{
+  const s=exportRows().map(r=>r.join('\t')).join('\n');
+  try{await navigator.clipboard.writeText(s);status('اتنسخ. الصقه في إكسل.','ok')}catch(e){status('المتصفح منع النسخ.','err')}
+};
+window.__test={get grid(){return grid},set grid(v){grid=v},reconstruct};
+</script>
+</body>
+</html>
