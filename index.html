@@ -76,11 +76,11 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:30px}
     <div>اسحب صورة هنا، أو اختار من الأزرار</div>
     <div class="btns">
       <label class="btn pri" for="fCam">📷 صوّر بالكاميرا</label>
-      <label class="btn" for="fUp">🖼️ اختار صورة / أكتر</label>
+      <label class="btn" for="fUp">🖼️ اختار صورة أو PDF</label>
       <button id="btnLive" type="button">🎥 كاميرا مباشرة</button>
     </div>
     <input id="fCam" type="file" accept="image/*" capture="environment">
-    <input id="fUp" type="file" accept="image/*" multiple>
+    <input id="fUp" type="file" accept="image/*,application/pdf,.pdf" multiple>
   </div>
   <div id="camBox">
     <div class="preview"><video id="video" playsinline muted></video></div>
@@ -141,11 +141,11 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:30px}
   <h2>الباقات</h2>
   <div class="plans">
     <div class="plan"><h3>مجاني</h3><div class="price">$0</div>
-      <ul><li>5 صفحات في اليوم</li><li>قراءة عربي وإنجليزي على جهازك</li><li>تنزيل Excel وCSV</li></ul>
+      <ul><li>5 صفحات في اليوم (صورة أو PDF حتى 10 صفحات في المرة)</li><li>قراءة عربي وإنجليزي على جهازك</li><li>تنزيل Excel وCSV</li></ul>
       <div class="meter" id="meter"></div></div>
     <div class="plan pro"><h3>SheetSnap Pro</h3><div class="pp" id="pp"><div id="pUsd"><div class="price">$7 <small>/ شهر</small></div><div class="hint" style="margin-top:0">أو $59 في السنة</div></div>
       <div id="pEg"><div class="price">149 <small>جنيه / شهر</small></div><div class="hint" style="margin-top:0">أو 1,199 جنيه في السنة (اشتراك بالكارت). لو هتدفع بمحفظة موبايل أو كاش: باقة مدفوعة مقدمًا بنفس السعر بدون تجديد تلقائي.</div></div></div>
-      <ul><li>صفحات بلا حدود</li><li>قراءة بالذكاء الاصطناعي: خط اليد، الصور الوحشة، الورق المايل</li><li>عدة صفحات وPDF في ملف واحد</li><li>سجل محفوظ على حسابك</li></ul>
+      <ul><li>صفحات بلا حدود</li><li>قراءة بالذكاء الاصطناعي: خط اليد، الصور الوحشة، الورق المايل</li><li>سجل محفوظ على حسابك</li></ul>
       <button class="pri" type="button" disabled id="proBtn">قريبًا</button></div>
   </div>
   <div class="hint">باقة Pro لسه ما اتفعلتش. الباقة المجانية بتشتغل بالكامل دلوقتي.</div>
@@ -162,8 +162,43 @@ let files=[],cur=0,srcBmp=null,rot=0,words=[],grid=[],selRow=0,cache=null;
 const AR=/[\u0600-\u06FF]/;
 
 /* ---------- input ---------- */
-function addFiles(list){
-  const fs=[...list].filter(f=>f.type.startsWith('image/'));
+const MAXPDF=10;
+let pdfjsP=null;
+function loadPdfJs(){
+  if(pdfjsP)return pdfjsP;
+  pdfjsP=new Promise((res,rej)=>{
+    const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+    sc.onload=async()=>{try{
+      const w=await (await fetch('https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js')).text();
+      pdfjsLib.GlobalWorkerOptions.workerSrc=URL.createObjectURL(new Blob([w],{type:'text/javascript'}));res(pdfjsLib)}catch(e){rej(e)}};
+    sc.onerror=()=>rej(new Error('pdf.js'));document.head.appendChild(sc);
+  });
+  pdfjsP.catch(()=>{pdfjsP=null});return pdfjsP;
+}
+async function pdfToImages(f){
+  const lib=await loadPdfJs();
+  const doc=await lib.getDocument({data:await f.arrayBuffer()}).promise;
+  const n=Math.min(doc.numPages,MAXPDF),out=[];
+  for(let i=1;i<=n;i++){
+    status((LANG==='en'?'Reading PDF page ':'بقرا صفحة PDF ')+i+' / '+n);
+    const pg=await doc.getPage(i),v0=pg.getViewport({scale:1}),sc=Math.min(3,2400/Math.max(v0.width,v0.height)),v=pg.getViewport({scale:sc});
+    const c=document.createElement('canvas');c.width=Math.round(v.width);c.height=Math.round(v.height);
+    const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);
+    await pg.render({canvasContext:x,viewport:v}).promise;
+    const b=await new Promise(r=>c.toBlob(r,'image/png'));
+    out.push(new File([b],f.name.replace(/\.pdf$/i,'')+' p'+i+'.png',{type:'image/png'}));
+  }
+  if(doc.numPages>MAXPDF)status(LANG==='en'?`Only the first ${MAXPDF} pages are used (PDF has ${doc.numPages}).`:`اتاخدت أول ${MAXPDF} صفحات بس (الـ PDF فيه ${doc.numPages}).`,'err');
+  return out;
+}
+async function addFiles(list){
+  let fs=[];
+  for(const f of [...list]){
+    if(f.type.startsWith('image/'))fs.push(f);
+    else if(f.type==='application/pdf'||/\.pdf$/i.test(f.name)){
+      try{fs.push(...await pdfToImages(f))}catch(e){console.error(e);status(T('حصلت مشكلة: ')+(LANG==='en'?'could not open this PDF (protected or damaged?)':'مقدرتش أفتح الـ PDF ده (محمي أو تالف؟)'),'err')}
+    }
+  }
   if(!fs.length)return;
   files=fs;cur=0;loadCurrent();
 }
@@ -172,7 +207,7 @@ async function loadCurrent(){
   try{srcBmp=await createImageBitmap(f,{imageOrientation:'from-image'});}
   catch(e){const im=new Image();im.src=URL.createObjectURL(f);await im.decode();srcBmp=im;}
   rot=0;words=[];
-  $('queue').textContent=files.length>1?`صورة ${cur+1} من ${files.length}: ${f.name}`:f.name;
+  $('queue').textContent=files.length>1?(LANG==='en'?`Page ${cur+1} of ${files.length}: ${f.name}`:`صورة ${cur+1} من ${files.length}: ${f.name}`):f.name;
   $('stepProc').style.display='';
   draw();
   $('stepProc').scrollIntoView({behavior:'smooth'});
@@ -271,20 +306,32 @@ $('go').onclick=async()=>{
       await worker.setParameters({tessedit_pageseg_mode:'6',preserve_interword_spaces:'1',user_defined_dpi:'300'});
       workerLang=lang;
     }
-    let c=base();if($('enh').checked)c=enhance(c);
-    const res=await worker.recognize(c,{},{blocks:true,text:true});
-    const d=res.data;
-    let ws=[];
-    if(d.words&&d.words.length)ws=d.words;
-    else if(d.blocks)for(const b of d.blocks)for(const p of b.paragraphs)for(const l of p.lines)for(const w of l.words)ws.push(w);
-    words=ws.filter(w=>w.text&&w.text.trim()&&w.confidence>25).map(w=>({t:w.text.trim(),x0:w.bbox.x0,x1:w.bbox.x1,y0:w.bbox.y0,y1:w.bbox.y1}));
-    $('raw').textContent=d.text||'';
-    if(!words.length){status(T('ما لقيتش نص. جرب تلف الصورة أو تقرب أكتر.'),'err');return}
-    const arCount=words.filter(w=>AR.test(w.t)).length;
-    $('rtl').checked=arCount>words.length*0.5;
-    buildGrid(!$('append').checked||!grid.length);
-    $('stepOut').style.display='';$('stepOut').scrollIntoView({behavior:'smooth'});
-    bump();meter();status(LANG==='en'?`Done: ${words.length} words read.`:`تمام: ${words.length} كلمة اتقرأت.`,'ok');
+    const startI=cur,total=files.length;let doneAny=false;
+    for(let i=startI;i<total;i++){
+      if(i>startI){
+        if(used()>=FREE_PER_DAY){const m=$('limitMsg');m.textContent=T('وصلت للحد المجاني النهارده (5 صفحات). جرب بكرة، أو استنى باقة Pro.');m.style.display='block';break}
+        cur=i;srcBmp=await createImageBitmap(files[i]);rot=0;words=[];draw();
+        $('queue').textContent=`${i+1} / ${total}: ${files[i].name}`;
+      }
+      if(total>1)status((LANG==='en'?'Page ':'صفحة ')+(i+1)+' / '+total);
+      let c=base();if($('enh').checked)c=enhance(c);
+      const res=await worker.recognize(c,{},{blocks:true,text:true});
+      const d=res.data;
+      let ws=[];
+      if(d.words&&d.words.length)ws=d.words;
+      else if(d.blocks)for(const b of d.blocks)for(const p of b.paragraphs)for(const l of p.lines)for(const w of l.words)ws.push(w);
+      words=ws.filter(w=>w.text&&w.text.trim()&&w.confidence>25).map(w=>({t:w.text.trim(),x0:w.bbox.x0,x1:w.bbox.x1,y0:w.bbox.y0,y1:w.bbox.y1}));
+      $('raw').textContent=(i>startI?$('raw').textContent+'\n':'')+(d.text||'');
+      if(!words.length){if(total===1){status(T('ما لقيتش نص. جرب تلف الصورة أو تقرب أكتر.'),'err');return}continue}
+      const arCount=words.filter(w=>AR.test(w.t)).length;
+      if(i===startI)$('rtl').checked=arCount>words.length*0.5;
+      buildGrid(i===startI?(!$('append').checked||!grid.length):false);
+      $('stepOut').style.display='';
+      bump();meter();doneAny=true;
+    }
+    if(!doneAny){status(T('ما لقيتش نص. جرب تلف الصورة أو تقرب أكتر.'),'err');return}
+    $('stepOut').scrollIntoView({behavior:'smooth'});
+    status(LANG==='en'?`Done: ${grid.length} rows from ${total>1?'the pages':'the page'}.`:`تمام: ${grid.length} صف اتقرأ.`,'ok');
     $('barI').style.width='100%';
   }catch(e){console.error(e);status(T('حصلت مشكلة: ')+(e.message||e),'err')}
   finally{$('go').disabled=false;setTimeout(()=>$('bar').style.display='none',800)}
@@ -420,7 +467,7 @@ $('copy').onclick=async()=>{
 
 /* ---------- language ---------- */
 const EN={"الصورة":"Image","اسحب صورة هنا، أو اختار من الأزرار":"Drop an image here, or use the buttons",
-"📷 صوّر بالكاميرا":"📷 Take a photo","🖼️ اختار صورة / أكتر":"🖼️ Choose image(s)","🎥 كاميرا مباشرة":"🎥 Live camera",
+"📷 صوّر بالكاميرا":"📷 Take a photo","🖼️ اختار صورة أو PDF":"🖼️ Choose image or PDF","🎥 كاميرا مباشرة":"🎥 Live camera",
 "التقط":"Capture","إغلاق":"Close","تجهيز الصورة والقراءة":"Prepare and read","↺ لف يسار":"↺ Rotate left","↻ لف يمين":"↻ Rotate right",
 "لغة الورقة":"Paper language","عربي + إنجليزي":"Arabic + English","إنجليزي":"English","عربي":"Arabic",
 "تحسين الصورة (تباين وتبييض الخلفية)":"Enhance image (contrast, whiten background)","ضيف على نفس الشيت":"Append to same sheet",
@@ -431,7 +478,7 @@ const EN={"الصورة":"Image","اسحب صورة هنا، أو اختار م�
 "⬇️ نزّل Excel (.xlsx)":"⬇️ Download Excel (.xlsx)","نزّل CSV":"Download CSV","انسخ للحافظة":"Copy to clipboard","النص الخام اللي اتقرأ":"Raw text that was read",
 "في مصر بالجنيه: 149 جنيه / شهر أو 1,199 جنيه / سنة (اشتراك بالكارت). ولو هتدفع بمحفظة موبايل أو كاش: باقة مدفوعة مقدمًا بنفس السعر بدون تجديد تلقائي.":"In Egypt, in EGP: 149 EGP / month or 1,199 EGP / year (card subscription). Paying by mobile wallet or cash: prepaid pass at the same price, no auto-renewal.",
 "جنيه / شهر":"EGP / month","أو 1,199 جنيه في السنة (اشتراك بالكارت). لو هتدفع بمحفظة موبايل أو كاش: باقة مدفوعة مقدمًا بنفس السعر بدون تجديد تلقائي.":"or 1,199 EGP per year (card subscription). Paying by mobile wallet or cash: prepaid pass at the same price, no auto-renewal.",
-"الباقات":"Plans","مجاني":"Free","5 صفحات في اليوم":"5 pages per day","قراءة عربي وإنجليزي على جهازك":"Arabic and English reading on your device","تنزيل Excel وCSV":"Excel and CSV export",
+"الباقات":"Plans","مجاني":"Free","5 صفحات في اليوم (صورة أو PDF حتى 10 صفحات في المرة)":"5 pages per day (image or PDF, up to 10 pages per run)","قراءة عربي وإنجليزي على جهازك":"Arabic and English reading on your device","تنزيل Excel وCSV":"Excel and CSV export",
 "/ شهر":"/ month","أو $59 في السنة":"or $59 per year","صفحات بلا حدود":"Unlimited pages","قراءة بالذكاء الاصطناعي: خط اليد، الصور الوحشة، الورق المايل":"AI reading: handwriting, poor photos, skewed paper",
 "عدة صفحات وPDF في ملف واحد":"Multi-page and PDF in one file","سجل محفوظ على حسابك":"History saved to your account","قريبًا":"Coming soon",
 "باقة Pro لسه ما اتفعلتش. الباقة المجانية بتشتغل بالكامل دلوقتي.":"Pro is not active yet. The free plan works fully today.",
