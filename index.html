@@ -594,7 +594,7 @@ $('dl').onclick=async()=>{
     const ref=XLSX.utils.encode_cell({r:ri,c:ci});let cell=ws[ref];
     if(!cell){cell=ws[ref]={t:'s',v:''}}
     const isH=ri===hi;
-    cell.s=isH?{font:{bold:true,color:{rgb:'FFFFFF'},sz:12},fill:{patternType:'solid',fgColor:{rgb:'1F2A44'}},alignment:{horizontal:'center',vertical:'center',wrapText:true},border}
+    cell.s=isH?{font:{bold:true,color:{rgb:'000000'},sz:12},fill:{patternType:'solid',fgColor:{rgb:'D9D9D9'}},alignment:{horizontal:'center',vertical:'center',wrapText:true},border}
              :{font:{sz:11},alignment:{horizontal:cell.t==='n'?'right':(rtl?'right':'left'),vertical:'center',wrapText:true},border};
   }
   ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:Math.max(0,nR-1),c:Math.max(0,W-1)}});
