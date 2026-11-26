@@ -62,7 +62,7 @@ td.numc{color:#8fd8ff}
 footer{color:var(--mute);font-size:12px;text-align:center;margin-top:30px}
 .err{color:var(--bad)}
 .ok{color:var(--ac)}
-</style>
+.pp{display:flex;flex-direction:column;gap:8px}.pp>div.sec{opacity:.65;font-size:.8em}.pp>div.sec .price{font-size:16px}.pp .lbl{font-size:12px;color:var(--ac);font-weight:700}</style>
 </head>
 <body>
 <div class="wrap">
@@ -143,15 +143,15 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:30px}
     <div class="plan"><h3>مجاني</h3><div class="price">$0</div>
       <ul><li>5 صفحات في اليوم</li><li>قراءة عربي وإنجليزي على جهازك</li><li>تنزيل Excel وCSV</li></ul>
       <div class="meter" id="meter"></div></div>
-    <div class="plan pro"><h3>SheetSnap Pro</h3><div class="price">$7 <small>/ شهر</small></div><div class="hint" style="margin-top:0">أو $59 في السنة</div>
-      <div class="hint">في مصر بالجنيه: 149 جنيه / شهر أو 1,199 جنيه / سنة (اشتراك بالكارت). ولو هتدفع بمحفظة موبايل أو كاش: باقة مدفوعة مقدمًا بنفس السعر بدون تجديد تلقائي.</div>
+    <div class="plan pro"><h3>SheetSnap Pro</h3><div class="pp" id="pp"><div id="pUsd"><div class="price">$7 <small>/ شهر</small></div><div class="hint" style="margin-top:0">أو $59 في السنة</div></div>
+      <div id="pEg"><div class="price">149 <small>جنيه / شهر</small></div><div class="hint" style="margin-top:0">أو 1,199 جنيه في السنة (اشتراك بالكارت). لو هتدفع بمحفظة موبايل أو كاش: باقة مدفوعة مقدمًا بنفس السعر بدون تجديد تلقائي.</div></div></div>
       <ul><li>صفحات بلا حدود</li><li>قراءة بالذكاء الاصطناعي: خط اليد، الصور الوحشة، الورق المايل</li><li>عدة صفحات وPDF في ملف واحد</li><li>سجل محفوظ على حسابك</li></ul>
       <button class="pri" type="button" disabled id="proBtn">قريبًا</button></div>
   </div>
   <div class="hint">باقة Pro لسه ما اتفعلتش. الباقة المجانية بتشتغل بالكامل دلوقتي.</div>
 </div>
 <div id="limitMsg" class="status err" style="display:none"></div>
-<footer><div style="margin-top:8px">SheetSnap · OCR: Tesseract.js · Excel: SheetJS · كله بيشتغل في المتصفح</div></footer>
+<footer><div style="margin-top:8px">SheetSnap · OCR: Tesseract.js · Excel: SheetJS · <span>كله بيشتغل في المتصفح</span></div></footer>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.mini.min.js"></script>
@@ -430,6 +430,7 @@ const EN={"الصورة":"Image","اسحب صورة هنا، أو اختار م�
 "اضغط على أي خلية وعدّلها. \"ادمج الصف\" بيشتغل على آخر خلية اخترتها.":"Click any cell to edit. \"Merge row\" works on the row of the last cell you selected.",
 "⬇️ نزّل Excel (.xlsx)":"⬇️ Download Excel (.xlsx)","نزّل CSV":"Download CSV","انسخ للحافظة":"Copy to clipboard","النص الخام اللي اتقرأ":"Raw text that was read",
 "في مصر بالجنيه: 149 جنيه / شهر أو 1,199 جنيه / سنة (اشتراك بالكارت). ولو هتدفع بمحفظة موبايل أو كاش: باقة مدفوعة مقدمًا بنفس السعر بدون تجديد تلقائي.":"In Egypt, in EGP: 149 EGP / month or 1,199 EGP / year (card subscription). Paying by mobile wallet or cash: prepaid pass at the same price, no auto-renewal.",
+"جنيه / شهر":"EGP / month","أو 1,199 جنيه في السنة (اشتراك بالكارت). لو هتدفع بمحفظة موبايل أو كاش: باقة مدفوعة مقدمًا بنفس السعر بدون تجديد تلقائي.":"or 1,199 EGP per year (card subscription). Paying by mobile wallet or cash: prepaid pass at the same price, no auto-renewal.",
 "الباقات":"Plans","مجاني":"Free","5 صفحات في اليوم":"5 pages per day","قراءة عربي وإنجليزي على جهازك":"Arabic and English reading on your device","تنزيل Excel وCSV":"Excel and CSV export",
 "/ شهر":"/ month","أو $59 في السنة":"or $59 per year","صفحات بلا حدود":"Unlimited pages","قراءة بالذكاء الاصطناعي: خط اليد، الصور الوحشة، الورق المايل":"AI reading: handwriting, poor photos, skewed paper",
 "عدة صفحات وPDF في ملف واحد":"Multi-page and PDF in one file","سجل محفوظ على حسابك":"History saved to your account","قريبًا":"Coming soon",
@@ -468,6 +469,10 @@ function meter(){const left=Math.max(0,FREE_PER_DAY-used());$('meter').textConte
 applyLang();
 
 window.__test={get grid(){return grid},set grid(v){grid=v},reconstruct};
+
+(function(){let eg=false;try{const z=Intl.DateTimeFormat().resolvedOptions().timeZone||'';eg=z==='Africa/Cairo'}catch(e){}
+const u=document.getElementById('pUsd'),g=document.getElementById('pEg'),pp=document.getElementById('pp');
+if(eg){pp.insertBefore(g,u);u.classList.add('sec')}else{g.classList.add('sec')}})();
 </script>
 </body>
 </html>
