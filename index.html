@@ -485,12 +485,31 @@ function reconstruct(ws,gapK,rtl){
   });
   return out;
 }
+function mergeHeader(g){
+  /* OCR can split a printed header over two lines (e.g. "البيان الكمية" above "سعر الوحدة الإجمالي"). Merge them into one row, by column. */
+  const isN=v=>asNum(String(v??'').trim())!==null&&String(v??'').trim()!=='';
+  const fd=g.findIndex(r=>r.filter(isN).length>=3);
+  if(fd<2||fd>14)return g;
+  let hIdx=g.findIndex(r=>r.filter(isN).length>=3)-1;
+  for(let pass=0;pass<2;pass++){
+    if(hIdx<1)break;
+    const H=g[hIdx],R=g[hIdx-1];
+    const rc=R.map((v,i)=>[v,i]).filter(([v])=>String(v??'').trim()!=='');
+    const hc=H.filter(v=>String(v??'').trim()!=='').length;
+    if(!rc.length||!hc)break;
+    if(rc.some(([v,i])=>String(H[i]??'').trim()!==''||String(v).length>25||isN(v)))break;
+    if(rc.length>hc+1)break;
+    rc.forEach(([v,i])=>{H[i]=v});
+    g.splice(hIdx-1,1);hIdx--;
+  }
+  return g;
+}
 function buildGrid(replace){
   let g=reconstruct(words,parseFloat($('gap').value),$('rtl').checked);
   g=g.filter(r=>r.join('').replace(/\s/g,'').length>1);   // drop empty rows and stray single marks
   if(g.length){const W=Math.max(...g.map(r=>r.length));g.forEach(r=>{while(r.length<W)r.push('')});
     const keep=[];for(let j=0;j<W;j++)if(g.some(r=>r[j]&&r[j].trim()))keep.push(j);
-    g=g.map(r=>keep.map(j=>r[j]))}
+    g=g.map(r=>keep.map(j=>r[j]));g=mergeHeader(g)}
   if(replace||!grid.length)grid=g;
   else{const w=Math.max(grid[0]?.length||0,g[0]?.length||0);grid=[...grid,new Array(w).fill('')].concat(g)}
   cache={replace};
