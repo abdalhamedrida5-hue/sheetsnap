@@ -51,6 +51,14 @@ td.numc{color:#8fd8ff}
 .hint{font-size:13px;color:var(--mute);margin-top:10px}
 .tag{font-size:12px;background:#203042;border-radius:20px;padding:2px 10px;color:var(--mute)}
 #camBox{display:none;margin-top:14px}
+.lang{margin-inline-start:auto}
+.plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.plan{border:1px solid var(--line);border-radius:14px;padding:16px;background:#121c27}
+.plan.pro{border-color:var(--ac)}
+.plan h3{margin:0 0 4px}.price{font-size:26px;font-weight:800}.price small{font-size:13px;color:var(--mute);font-weight:400}
+.plan ul{padding-inline-start:18px;color:var(--mute);font-size:14px;margin:10px 0}
+.meter{font-size:13px;color:var(--mute);margin-top:8px}
+.legal a{color:var(--mute);margin:0 8px}
 footer{color:var(--mute);font-size:12px;text-align:center;margin-top:30px}
 .err{color:var(--bad)}
 .ok{color:var(--ac)}
@@ -58,7 +66,7 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:30px}
 </head>
 <body>
 <div class="wrap">
-<header><div class="logo">SS</div><div><h1>SheetSnap</h1><div style="color:var(--mute);font-size:14px;margin-top:-2px">صوّر الورقة، خدها إكسل · Snap a paper, get a spreadsheet</div></div></header>
+<header><div class="logo">SS</div><div><h1>SheetSnap</h1><div style="color:var(--mute);font-size:14px;margin-top:-2px">صوّر الورقة، خدها إكسل · Snap a paper, get a spreadsheet</div></div><button class="small lang" id="langBtn" type="button">English</button></header>
 <p class="sub" lang="en" dir="ltr" style="margin-bottom:4px;text-align:start">Photograph any printed page and get an Excel file. Everything runs in your browser; no image is uploaded.</p>
 <p class="sub">صوّر أي ورقة مطبوعة (فاتورة، جدول، كشف) واستلم ملف إكسل جاهز. المعالجة كلها على جهازك، مفيش صورة بتترفع لأي سيرفر.</p>
 
@@ -129,7 +137,21 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:30px}
   </div>
   <details style="margin-top:12px"><summary class="hint">النص الخام اللي اتقرأ</summary><pre id="raw" style="white-space:pre-wrap;color:var(--mute)"></pre></details>
 </div>
-<footer>SheetSnap · OCR: Tesseract.js · Excel: SheetJS · كله بيشتغل في المتصفح</footer>
+<div class="card" id="pricing">
+  <h2>الباقات</h2>
+  <div class="plans">
+    <div class="plan"><h3>مجاني</h3><div class="price">$0</div>
+      <ul><li>5 صفحات في اليوم</li><li>قراءة عربي وإنجليزي على جهازك</li><li>تنزيل Excel وCSV</li></ul>
+      <div class="meter" id="meter"></div></div>
+    <div class="plan pro"><h3>SheetSnap Pro</h3><div class="price">$7 <small>/ شهر</small></div><div class="hint" style="margin-top:0">أو $59 في السنة</div>
+      <div class="hint">في مصر بالجنيه: 149 جنيه / شهر أو 1,199 جنيه / سنة (اشتراك بالكارت). ولو هتدفع بمحفظة موبايل أو كاش: باقة مدفوعة مقدمًا بنفس السعر بدون تجديد تلقائي.</div>
+      <ul><li>صفحات بلا حدود</li><li>قراءة بالذكاء الاصطناعي: خط اليد، الصور الوحشة، الورق المايل</li><li>عدة صفحات وPDF في ملف واحد</li><li>سجل محفوظ على حسابك</li></ul>
+      <button class="pri" type="button" disabled id="proBtn">قريبًا</button></div>
+  </div>
+  <div class="hint">باقة Pro لسه ما اتفعلتش. الباقة المجانية بتشتغل بالكامل دلوقتي.</div>
+</div>
+<div id="limitMsg" class="status err" style="display:none"></div>
+<footer><div style="margin-top:8px">SheetSnap · OCR: Tesseract.js · Excel: SheetJS · كله بيشتغل في المتصفح</div></footer>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.mini.min.js"></script>
@@ -234,17 +256,18 @@ $('rotR').onclick=()=>{rot=(rot+1)%4;draw()};
 const status=(t,cls)=>{$('status').className='status '+(cls||'');$('status').textContent=t};
 let worker=null,workerLang=null;
 $('go').onclick=async()=>{
-  if(typeof Tesseract==='undefined'){status('مكتبة القراءة ما اتحملتش. تأكد من النت وجرب تاني.','err');return}
+  if(used()>=FREE_PER_DAY){const m=$('limitMsg');m.textContent=T('وصلت للحد المجاني النهارده (5 صفحات). جرب بكرة، أو استنى باقة Pro.');m.style.display='block';$('pricing').scrollIntoView({behavior:'smooth'});return}
+  if(typeof Tesseract==='undefined'){status(T('مكتبة القراءة ما اتحملتش. تأكد من النت وجرب تاني.'),'err');return}
   $('go').disabled=true;$('bar').style.display='block';$('barI').style.width='2%';
   try{
     const lang=$('lang').value;
     if(!worker||workerLang!==lang){
       if(worker)await worker.terminate();
-      status('بحمّل نموذج القراءة...');
+      status(T('بحمّل نموذج القراءة...'));
       worker=await Tesseract.createWorker(lang,1,{logger:m=>{
         if(m.status){const p=Math.round((m.progress||0)*100);
           $('barI').style.width=Math.max(3,p)+'%';
-          status((m.status.includes('recogniz')?'بقرأ الورقة ':'جاري التحضير ')+p+'%')}}});
+          status(T(m.status.includes('recogniz')?'بقرأ الورقة ':'جاري التحضير ')+p+'%')}}});
       await worker.setParameters({tessedit_pageseg_mode:'6',preserve_interword_spaces:'1',user_defined_dpi:'300'});
       workerLang=lang;
     }
@@ -256,14 +279,14 @@ $('go').onclick=async()=>{
     else if(d.blocks)for(const b of d.blocks)for(const p of b.paragraphs)for(const l of p.lines)for(const w of l.words)ws.push(w);
     words=ws.filter(w=>w.text&&w.text.trim()&&w.confidence>25).map(w=>({t:w.text.trim(),x0:w.bbox.x0,x1:w.bbox.x1,y0:w.bbox.y0,y1:w.bbox.y1}));
     $('raw').textContent=d.text||'';
-    if(!words.length){status('ما لقيتش نص. جرب تلف الصورة أو تقرب أكتر.','err');return}
+    if(!words.length){status(T('ما لقيتش نص. جرب تلف الصورة أو تقرب أكتر.'),'err');return}
     const arCount=words.filter(w=>AR.test(w.t)).length;
     $('rtl').checked=arCount>words.length*0.5;
     buildGrid(!$('append').checked||!grid.length);
     $('stepOut').style.display='';$('stepOut').scrollIntoView({behavior:'smooth'});
-    status(`تمام: ${words.length} كلمة اتقرأت.`,'ok');
+    bump();meter();status(LANG==='en'?`Done: ${words.length} words read.`:`تمام: ${words.length} كلمة اتقرأت.`,'ok');
     $('barI').style.width='100%';
-  }catch(e){console.error(e);status('حصلت مشكلة: '+(e.message||e),'err')}
+  }catch(e){console.error(e);status(T('حصلت مشكلة: ')+(e.message||e),'err')}
   finally{$('go').disabled=false;setTimeout(()=>$('bar').style.display='none',800)}
 };
 
@@ -392,8 +415,58 @@ $('csv').onclick=()=>{
 };
 $('copy').onclick=async()=>{
   const s=exportRows().map(r=>r.join('\t')).join('\n');
-  try{await navigator.clipboard.writeText(s);status('اتنسخ. الصقه في إكسل.','ok')}catch(e){status('المتصفح منع النسخ.','err')}
+  try{await navigator.clipboard.writeText(s);status(T('اتنسخ. الصقه في إكسل.'),'ok')}catch(e){status(T('المتصفح منع النسخ.'),'err')}
 };
+
+/* ---------- language ---------- */
+const EN={"الصورة":"Image","اسحب صورة هنا، أو اختار من الأزرار":"Drop an image here, or use the buttons",
+"📷 صوّر بالكاميرا":"📷 Take a photo","🖼️ اختار صورة / أكتر":"🖼️ Choose image(s)","🎥 كاميرا مباشرة":"🎥 Live camera",
+"التقط":"Capture","إغلاق":"Close","تجهيز الصورة والقراءة":"Prepare and read","↺ لف يسار":"↺ Rotate left","↻ لف يمين":"↻ Rotate right",
+"لغة الورقة":"Paper language","عربي + إنجليزي":"Arabic + English","إنجليزي":"English","عربي":"Arabic",
+"تحسين الصورة (تباين وتبييض الخلفية)":"Enhance image (contrast, whiten background)","ضيف على نفس الشيت":"Append to same sheet",
+"⚡ حوّل لجدول":"⚡ Convert to table","أول مرة بتحمّل نموذج القراءة (بضع ميجا) وبعدها بيتخزن في المتصفح. محتاج نت للتحميل الأول.":"The first run downloads the reading model (a few MB); the browser caches it after that. Needs internet the first time.",
+"راجع وعدّل وصدّر":"Review, edit, export","حساسية الأعمدة":"Column sensitivity","الورقة من اليمين لليسار":"Paper is right-to-left","حوّل الأرقام لأرقام فعلية":"Convert numbers to real numbers",
+"+ صف":"+ Row","+ عمود":"+ Column","− آخر صف":"− Last row","− آخر عمود":"− Last column","ادمج الصف مع اللي فوقه":"Merge row into the one above",
+"اضغط على أي خلية وعدّلها. \"ادمج الصف\" بيشتغل على آخر خلية اخترتها.":"Click any cell to edit. \"Merge row\" works on the row of the last cell you selected.",
+"⬇️ نزّل Excel (.xlsx)":"⬇️ Download Excel (.xlsx)","نزّل CSV":"Download CSV","انسخ للحافظة":"Copy to clipboard","النص الخام اللي اتقرأ":"Raw text that was read",
+"في مصر بالجنيه: 149 جنيه / شهر أو 1,199 جنيه / سنة (اشتراك بالكارت). ولو هتدفع بمحفظة موبايل أو كاش: باقة مدفوعة مقدمًا بنفس السعر بدون تجديد تلقائي.":"In Egypt, in EGP: 149 EGP / month or 1,199 EGP / year (card subscription). Paying by mobile wallet or cash: prepaid pass at the same price, no auto-renewal.",
+"الباقات":"Plans","مجاني":"Free","5 صفحات في اليوم":"5 pages per day","قراءة عربي وإنجليزي على جهازك":"Arabic and English reading on your device","تنزيل Excel وCSV":"Excel and CSV export",
+"/ شهر":"/ month","أو $59 في السنة":"or $59 per year","صفحات بلا حدود":"Unlimited pages","قراءة بالذكاء الاصطناعي: خط اليد، الصور الوحشة، الورق المايل":"AI reading: handwriting, poor photos, skewed paper",
+"عدة صفحات وPDF في ملف واحد":"Multi-page and PDF in one file","سجل محفوظ على حسابك":"History saved to your account","قريبًا":"Coming soon",
+"باقة Pro لسه ما اتفعلتش. الباقة المجانية بتشتغل بالكامل دلوقتي.":"Pro is not active yet. The free plan works fully today.",
+"الشروط":"Terms","الخصوصية":"Privacy","الاسترجاع":"Refunds","كله بيشتغل في المتصفح":"Runs entirely in your browser",
+"تمام: ":"Done: ","كلمة اتقرأت.":"words read.","بقرأ الورقة ":"Reading the page ","جاري التحضير ":"Preparing ","بحمّل نموذج القراءة...":"Loading the reading model...",
+"ما لقيتش نص. جرب تلف الصورة أو تقرب أكتر.":"No text found. Try rotating the image or moving closer.","حصلت مشكلة: ":"Problem: ",
+"مكتبة القراءة ما اتحملتش. تأكد من النت وجرب تاني.":"The reading library did not load. Check your internet and try again.",
+"اتنسخ. الصقه في إكسل.":"Copied. Paste it into Excel.","المتصفح منع النسخ.":"The browser blocked copying.",
+"وصلت للحد المجاني النهارده (5 صفحات). جرب بكرة، أو استنى باقة Pro.":"You reached today's free limit (5 pages). Try tomorrow, or wait for Pro."};
+let LANG=(()=>{try{return localStorage.getItem('ss_lang')}catch(e){return null}})()||((navigator.language||'').startsWith('ar')?'ar':'en');
+const T=ar=>LANG==='en'&&EN[ar]?EN[ar]:ar;
+const orig=new WeakMap();
+function applyLang(){
+  document.documentElement.lang=LANG;document.documentElement.dir=LANG==='en'?'ltr':'rtl';
+  const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,{acceptNode:n=>{const p=n.parentNode.nodeName;return(p==='SCRIPT'||p==='STYLE'||p==='PRE'||p==='TD'||p==='TH')?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT}});
+  let n;while(n=w.nextNode()){
+    if(!orig.has(n))orig.set(n,n.nodeValue);
+    const o=orig.get(n),t=o.trim();
+    if(!t)continue;
+    const r=(LANG==='en'&&EN[t])?o.replace(t,EN[t]):o;
+    if(n.nodeValue!==r)n.nodeValue=r;
+  }
+  document.querySelectorAll('p.sub:not([lang])').forEach(e=>e.style.display=LANG==='en'?'none':'');
+  $('langBtn').textContent=LANG==='en'?'العربية':'English';
+  meter();
+}
+$('langBtn').onclick=()=>{LANG=LANG==='en'?'ar':'en';try{localStorage.setItem('ss_lang',LANG)}catch(e){}applyLang()};
+
+/* ---------- free daily limit (device-local, honest: not enforceable until Pro has a server) ---------- */
+const FREE_PER_DAY=5;
+function today(){return new Date().toISOString().slice(0,10)}
+function used(){try{const o=JSON.parse(localStorage.getItem('ss_use')||'{}');return o.d===today()?o.n:0}catch(e){return 0}}
+function bump(){try{localStorage.setItem('ss_use',JSON.stringify({d:today(),n:used()+1}))}catch(e){}}
+function meter(){const left=Math.max(0,FREE_PER_DAY-used());$('meter').textContent=LANG==='en'?`${left} of ${FREE_PER_DAY} free pages left today`:`فاضل ${left} من ${FREE_PER_DAY} صفحات مجانية النهارده`}
+applyLang();
+
 window.__test={get grid(){return grid},set grid(v){grid=v},reconstruct};
 </script>
 </body>
