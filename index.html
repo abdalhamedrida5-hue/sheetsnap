@@ -279,7 +279,54 @@ function enhance(c){
     // also clear 1px neighbours of the line to remove anti-aliased edges
     for(const o of [0,1,-1,w,-w]){const q=j+o;if(q>=0&&q<w*h&&d[q*4]<200&&kill[q]!==0||o===0){const t=(q>=0&&q<w*h?q:j)*4;d[t]=d[t+1]=d[t+2]=255}}
   }
+  // remove big, sparse connected shapes (table grids, page edges, shadows): long thin structures that are not text
+  {
+    const bw0=new Uint8Array(w*h);for(let j=0;j<w*h;j++)bw0[j]=d[j*4]<215?1:0;
+    const lab=new Int32Array(w*h),stack=new Int32Array(w*h);let nl=0;const big=Math.max(w,h)*0.16;
+    const dead=new Uint8Array(w*h);
+    for(let j=0;j<w*h;j++){
+      if(!bw0[j]||lab[j])continue;
+      nl++;let sp=0,cnt=0,x0=w,x1=0,y0=h,y1=0;stack[sp++]=j;lab[j]=nl;const mem=[];
+      while(sp){const p=stack[--sp];cnt++;mem.push(p);const px=p%w,py=(p-px)/w;
+        if(px<x0)x0=px;if(px>x1)x1=px;if(py<y0)y0=py;if(py>y1)y1=py;
+        for(let dy=-1;dy<=1;dy++){const qy=py+dy;if(qy<0||qy>=h)continue;
+          for(let dx=-1;dx<=1;dx++){const qx=px+dx;if(qx<0||qx>=w)continue;const q=qy*w+qx;
+            if(bw0[q]&&!lab[q]){lab[q]=nl;stack[sp++]=q}}}}
+      const bw=x1-x0+1,bh=y1-y0+1;
+      if((bw>big||bh>big)&&cnt/(bw*bh)<0.3){for(const p of mem)dead[p]=1}
+    }
+    for(let y=0;y<h;y++)for(let xx=0;xx<w;xx++){
+      let hit=false;
+      for(let dy=-2;dy<=2&&!hit;dy++){const qy=y+dy;if(qy<0||qy>=h)continue;
+        for(let dx=-2;dx<=2;dx++){const qx=xx+dx;if(qx<0||qx>=w)continue;if(dead[qy*w+qx]){hit=true;break}}}
+      if(hit){const o2=(y*w+xx)*4;d[o2]=d[o2+1]=d[o2+2]=255}
+    }
+  }
   x.putImageData(id,0,0);return c;
+}
+
+function deskew(c){
+  // estimate page tilt from the dark pixels of a small, cleaned copy, then rotate
+  const k=Math.min(1,900/Math.max(c.width,c.height));
+  const sc=document.createElement('canvas');sc.width=Math.round(c.width*k);sc.height=Math.round(c.height*k);
+  sc.getContext('2d').drawImage(c,0,0,sc.width,sc.height);
+  const e=enhance(sc),w=e.width,h=e.height,d=e.getContext('2d').getImageData(0,0,w,h).data;
+  const px=[];
+  for(let y=0;y<h;y+=1)for(let x=0;x<w;x+=1)if(d[(y*w+x)*4]<110)px.push(x,y);
+  if(px.length<400)return c;
+  const cx=w/2,cy=h/2;let best=0,bs=-1,s0=0;
+  const sc2=a=>{const t=a*Math.PI/180,sn=Math.sin(t),cs=Math.cos(t),H=new Float64Array(h*2+4);
+    for(let i=0;i<px.length;i+=2){const yy=Math.round((px[i+1]-cy)*cs-(px[i]-cx)*sn+h+1);if(yy>=0&&yy<H.length)H[yy]++}
+    let s=0;for(let i=1;i<H.length;i++){const q=H[i]-H[i-1];s+=q*q}return s};
+  s0=sc2(0);
+  for(let a=-12;a<=12;a+=0.25){const v=sc2(a);if(v>bs){bs=v;best=a}}
+  for(let a=best-0.25;a<=best+0.25;a+=0.05){const v=sc2(a);if(v>bs){bs=v;best=a}}
+  if(Math.abs(best)<0.3||bs<s0*1.03)return c;
+  const t=best*Math.PI/180,W=c.width,Hh=c.height;
+  const nw=Math.ceil(Math.abs(W*Math.cos(t))+Math.abs(Hh*Math.sin(t))),nh=Math.ceil(Math.abs(Hh*Math.cos(t))+Math.abs(W*Math.sin(t)));
+  const o=document.createElement('canvas');o.width=nw;o.height=nh;const x=o.getContext('2d');
+  x.fillStyle='#fff';x.fillRect(0,0,nw,nh);x.translate(nw/2,nh/2);x.rotate(-t);x.drawImage(c,-W/2,-Hh/2);
+  return o;
 }
 function draw(){
   const c=base();const cv=$('cv');cv.width=c.width;cv.height=c.height;cv.getContext('2d').drawImage(c,0,0);
@@ -314,17 +361,17 @@ $('go').onclick=async()=>{
         $('queue').textContent=`${i+1} / ${total}: ${files[i].name}`;
       }
       if(total>1)status((LANG==='en'?'Page ':'صفحة ')+(i+1)+' / '+total);
-      let c=base();if($('enh').checked)c=enhance(c);
+      let c=deskew(base());if($('enh').checked)c=enhance(c);
       const res=await worker.recognize(c,{},{blocks:true,text:true});
       const d=res.data;
       let ws=[];
       if(d.words&&d.words.length)ws=d.words;
       else if(d.blocks)for(const b of d.blocks)for(const p of b.paragraphs)for(const l of p.lines)for(const w of l.words)ws.push(w);
-      words=ws.filter(w=>w.text&&w.text.trim()&&w.confidence>25).map(w=>({t:w.text.trim(),x0:w.bbox.x0,x1:w.bbox.x1,y0:w.bbox.y0,y1:w.bbox.y1}));
+      words=ws.map(w=>({t:(w.text||'').replace(/[\u200e\u200f\u202a-\u202e]/g,'').trim(),c:w.confidence,x0:w.bbox.x0,x1:w.bbox.x1,y0:w.bbox.y0,y1:w.bbox.y1})).filter(w=>w.t&&w.c>25&&/[\p{L}\p{N}]/u.test(w.t)&&!(w.t.length<2&&w.c<55&&!/\d/.test(w.t))).map(w=>({t:w.t.replace(/^[|¦\[\]]+|[|¦\[\]]+$/g,''),x0:w.x0,x1:w.x1,y0:w.y0,y1:w.y1})).filter(w=>w.t);
       $('raw').textContent=(i>startI?$('raw').textContent+'\n':'')+(d.text||'');
       if(!words.length){if(total===1){status(T('ما لقيتش نص. جرب تلف الصورة أو تقرب أكتر.'),'err');return}continue}
-      const arCount=words.filter(w=>AR.test(w.t)).length;
-      if(i===startI)$('rtl').checked=arCount>words.length*0.5;
+      const arCount=words.filter(w=>AR.test(w.t)).length,laCount=words.filter(w=>/[A-Za-z]/.test(w.t)).length;
+      if(i===startI)$('rtl').checked=arCount>laCount;
       buildGrid(i===startI?(!$('append').checked||!grid.length):false);
       $('stepOut').style.display='';
       bump();meter();doneAny=true;
@@ -366,7 +413,9 @@ function reconstruct(ws,gapK,rtl){
   });
   // column intervals from rows with 2+ cells
   const iv=[];
-  rows.forEach(r=>{if(r.length>=2)r.forEach(c=>iv.push([c.x0,c.x1]))});
+  const lens=rows.map(r=>r.length).sort((a,b)=>a-b),p90=lens[Math.min(lens.length-1,Math.floor(lens.length*0.9))]||1;
+  const minCells=Math.max(2,Math.ceil(p90*0.6));
+  rows.forEach(r=>{if(r.length>=minCells)r.forEach(c=>iv.push([c.x0,c.x1]))});
   if(!iv.length)rows.forEach(r=>r.forEach(c=>iv.push([c.x0,c.x1])));
   iv.sort((a,b)=>a[0]-b[0]);
   const cols=[];
@@ -386,7 +435,11 @@ function reconstruct(ws,gapK,rtl){
   return out;
 }
 function buildGrid(replace){
-  const g=reconstruct(words,parseFloat($('gap').value),$('rtl').checked);
+  let g=reconstruct(words,parseFloat($('gap').value),$('rtl').checked);
+  g=g.filter(r=>r.some(c=>c&&c.trim()));
+  if(g.length){const W=Math.max(...g.map(r=>r.length));g.forEach(r=>{while(r.length<W)r.push('')});
+    const keep=[];for(let j=0;j<W;j++)if(g.some(r=>r[j]&&r[j].trim()))keep.push(j);
+    g=g.map(r=>keep.map(j=>r[j]))}
   if(replace||!grid.length)grid=g;
   else{const w=Math.max(grid[0]?.length||0,g[0]?.length||0);grid=[...grid,new Array(w).fill('')].concat(g)}
   cache={replace};
