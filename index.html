@@ -67,7 +67,7 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:30px}
 <body>
 <div class="wrap">
 <header><div class="logo">SS</div><div><h1>SheetSnap</h1><div style="color:var(--mute);font-size:14px;margin-top:-2px">صوّر الورقة، خدها إكسل · Snap a paper, get a spreadsheet</div></div><button class="small lang" id="langBtn" type="button">English</button></header>
-<p class="sub" lang="en" dir="ltr" style="margin-bottom:4px;text-align:start">Photograph any printed page and get an Excel file. Everything runs in your browser; no image is uploaded.</p>
+<p class="sub" lang="en" dir="ltr" style="margin-bottom:4px;text-align:start">Photograph any printed page and get an Excel file. Standard reading runs in your browser; no image is uploaded. (The experimental AI option, if shown, uploads the image to Gemini.)</p>
 <p class="sub">صوّر أي ورقة مطبوعة (فاتورة، جدول، كشف) واستلم ملف إكسل جاهز. المعالجة كلها على جهازك، مفيش صورة بتترفع لأي سيرفر.</p>
 
 <div class="card">
@@ -105,7 +105,7 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:30px}
           </select></label>
         <label><input type="checkbox" id="enh" checked> تحسين الصورة (تباين وتبييض الخلفية)</label>
         <label><input type="checkbox" id="append"> ضيف على نفس الشيت</label>
-        <label id="aiWrap" style="display:none"><input type="checkbox" id="aiMode"> قراءة بالذكاء الاصطناعي (تجريبي)</label>
+        <label id="aiWrap" style="display:none"><input type="checkbox" id="aiMode"> قراءة بالذكاء الاصطناعي (تجريبي)<div class="hint" style="color:#b00020;font-weight:700">تنبيه: في وضع الذكاء الاصطناعي الصورة بتتبعت لـ Google Gemini (مفتاح تجريبي غير مدفوع). استخدم ملفات تجريبية بس، مش فواتير أو مستندات حقيقية.</div></label>
       </div>
       <div class="btns" style="justify-content:flex-start"><button class="pri" id="go" type="button">⚡ حوّل لجدول</button></div>
       <div class="bar" id="bar"><i id="barI"></i></div>
@@ -141,12 +141,12 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:30px}
 </div>
 <div class="card" id="pricing">
   <h2>نسخة تجريبية مجانية</h2>
-  <ul><li>صفحتين في اليوم (صورة أو صفحات PDF)</li><li>قراءة عربي وإنجليزي على جهازك، الصورة ما بتتبعتش لأي سيرفر</li><li>تنزيل Excel وCSV</li></ul>
+  <ul><li>صفحتين في اليوم (صورة أو صفحات PDF)</li><li>القراءة العادية على جهازك والصورة ما بتتبعتش لأي سيرفر</li><li>تنزيل Excel وCSV</li></ul>
   <div class="meter" id="meter"></div>
   <div class="hint">دي نسخة تجريبية. الحد بيتجدد كل يوم.</div>
 </div>
 <div id="limitMsg" class="status err" style="display:none"></div>
-<footer><div style="margin-top:8px">SheetSnap · OCR: Tesseract.js · Excel: SheetJS · <span>كله بيشتغل في المتصفح</span></div></footer>
+<footer><div style="margin-top:8px">SheetSnap · OCR: Tesseract.js · Excel: SheetJS · <span>القراءة العادية بتشتغل في المتصفح</span></div></footer>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -343,6 +343,7 @@ const AIMODE=new URLSearchParams(location.search).get('ai')==='1';   // AI readi
 const AI_URL='https://sheetsnap-ai.abdalhamedrida5.workers.dev';
 if(AIMODE)$('aiWrap').style.display='';
 async function aiRead(){
+  if(!confirm(LANG==='en'?'AI mode uploads this image to Google Gemini on an unpaid test key. Use sample files only, never real invoices or personal data. Continue?':'وضع الذكاء الاصطناعي بيرفع الصورة لـ Google Gemini بمفتاح تجريبي غير مدفوع. استخدم ملفات تجريبية بس، مش فواتير أو بيانات حقيقية. تكمل؟'))return;
   $('go').disabled=true;$('bar').style.display='block';$('barI').style.width='30%';
   try{
     const startI=cur,total=files.length;let doneAny=false;
@@ -668,11 +669,11 @@ const EN={"الصورة":"Image","اسحب صورة هنا، أو اختار م�
 "⬇️ نزّل Excel (.xlsx)":"⬇️ Download Excel (.xlsx)","نزّل CSV":"Download CSV","انسخ للحافظة":"Copy to clipboard","النص الخام اللي اتقرأ":"Raw text that was read",
 "في مصر بالجنيه: 149 جنيه / شهر أو 1,199 جنيه / سنة (اشتراك بالكارت). ولو هتدفع بمحفظة موبايل أو كاش: باقة مدفوعة مقدمًا بنفس السعر بدون تجديد تلقائي.":"In Egypt, in EGP: 149 EGP / month or 1,199 EGP / year (card subscription). Paying by mobile wallet or cash: prepaid pass at the same price, no auto-renewal.",
 "جنيه / شهر":"EGP / month","أو 1,199 جنيه في السنة (اشتراك بالكارت). لو هتدفع بمحفظة موبايل أو كاش: باقة مدفوعة مقدمًا بنفس السعر بدون تجديد تلقائي.":"or 1,199 EGP per year (card subscription). Paying by mobile wallet or cash: prepaid pass at the same price, no auto-renewal.",
-"نسخة تجريبية مجانية":"Free trial","نسخة تجريبية: صفحتين مجانًا في اليوم.":"Free trial: 2 pages per day.","صفحتين في اليوم (صورة أو صفحات PDF)":"2 pages per day (image or PDF pages)","قراءة عربي وإنجليزي على جهازك، الصورة ما بتتبعتش لأي سيرفر":"Arabic and English reading on your device; your image is never uploaded","دي نسخة تجريبية. الحد بيتجدد كل يوم.":"This is a trial. The limit resets every day.","5 صفحات في اليوم (صورة أو PDF حتى 10 صفحات في المرة)":"5 pages per day (image or PDF, up to 10 pages per run)","قراءة عربي وإنجليزي على جهازك":"Arabic and English reading on your device","تنزيل Excel وCSV":"Excel and CSV export",
+"نسخة تجريبية مجانية":"Free trial","تنبيه: في وضع الذكاء الاصطناعي الصورة بتتبعت لـ Google Gemini (مفتاح تجريبي غير مدفوع). استخدم ملفات تجريبية بس، مش فواتير أو مستندات حقيقية.":"Notice: in AI mode the image is uploaded to Google Gemini (unpaid test key). Use sample files only, no real invoices or documents.","نسخة تجريبية: صفحتين مجانًا في اليوم.":"Free trial: 2 pages per day.","صفحتين في اليوم (صورة أو صفحات PDF)":"2 pages per day (image or PDF pages)","القراءة العادية على جهازك والصورة ما بتتبعتش لأي سيرفر":"Standard reading happens on your device; your image is not uploaded","دي نسخة تجريبية. الحد بيتجدد كل يوم.":"This is a trial. The limit resets every day.","5 صفحات في اليوم (صورة أو PDF حتى 10 صفحات في المرة)":"5 pages per day (image or PDF, up to 10 pages per run)","قراءة عربي وإنجليزي على جهازك":"Arabic and English reading on your device","تنزيل Excel وCSV":"Excel and CSV export",
 "/ شهر":"/ month","أو $59 في السنة":"or $59 per year","صفحات بلا حدود":"Unlimited pages","قراءة بالذكاء الاصطناعي: خط اليد، الصور الوحشة، الورق المايل":"AI reading: handwriting, poor photos, skewed paper",
 "عدة صفحات وPDF في ملف واحد":"Multi-page and PDF in one file","سجل محفوظ على حسابك":"History saved to your account","قريبًا":"Coming soon",
 "باقة Pro لسه ما اتفعلتش. الباقة المجانية بتشتغل بالكامل دلوقتي.":"Pro is not active yet. The free plan works fully today.",
-"الشروط":"Terms","الخصوصية":"Privacy","الاسترجاع":"Refunds","كله بيشتغل في المتصفح":"Runs entirely in your browser",
+"الشروط":"Terms","الخصوصية":"Privacy","الاسترجاع":"Refunds","القراءة العادية بتشتغل في المتصفح":"Standard reading runs in your browser",
 "تمام: ":"Done: ","كلمة اتقرأت.":"words read.","بقرأ الورقة ":"Reading the page ","جاري التحضير ":"Preparing ","بحمّل نموذج القراءة...":"Loading the reading model...",
 "ما لقيتش نص. جرب تلف الصورة أو تقرب أكتر.":"No text found. Try rotating the image or moving closer.","حصلت مشكلة: ":"Problem: ",
 "مكتبة القراءة ما اتحملتش. تأكد من النت وجرب تاني.":"The reading library did not load. Check your internet and try again.",
