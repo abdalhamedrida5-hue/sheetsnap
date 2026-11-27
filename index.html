@@ -104,6 +104,7 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:30px}
           </select></label>
         <label><input type="checkbox" id="enh" checked> تحسين الصورة (تباين وتبييض الخلفية)</label>
         <label><input type="checkbox" id="append"> ضيف على نفس الشيت</label>
+        <label id="aiWrap" style="display:none"><input type="checkbox" id="aiMode"> قراءة بالذكاء الاصطناعي (تجريبي)</label>
       </div>
       <div class="btns" style="justify-content:flex-start"><button class="pri" id="go" type="button">⚡ حوّل لجدول</button></div>
       <div class="bar" id="bar"><i id="barI"></i></div>
@@ -344,7 +345,43 @@ $('rotR').onclick=()=>{rot=(rot+1)%4;draw()};
 /* ---------- OCR ---------- */
 const status=(t,cls)=>{$('status').className='status '+(cls||'');$('status').textContent=t};
 let worker=null,workerLang=null,dWorker=null,aWorker=null,eWorker=null;const LANGPATH=undefined;
+const AIMODE=new URLSearchParams(location.search).get('ai')==='1';   // AI reading is off for customers; enabled only with ?ai=1 (testing)
+const AI_URL='https://sheetsnap-ai.abdalhamedrida5.workers.dev';
+if(AIMODE)$('aiWrap').style.display='';
+async function aiRead(){
+  $('go').disabled=true;$('bar').style.display='block';$('barI').style.width='30%';
+  try{
+    const startI=cur,total=files.length;let doneAny=false;
+    for(let i=startI;i<total;i++){
+      if(i>startI){cur=i;srcBmp=await createImageBitmap(files[i]);rot=0;words=[];draw();$('queue').textContent=`${i+1} / ${total}: ${files[i].name}`}
+      status((LANG==='en'?'AI reading page ':'الذكاء الاصطناعي بيقرا صفحة ')+(i+1)+' / '+total);
+      const src=base(),k=Math.min(1,1600/Math.max(src.width,src.height));
+      const c=document.createElement('canvas');c.width=Math.round(src.width*k);c.height=Math.round(src.height*k);
+      const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(src,0,0,c.width,c.height);
+      const b64=c.toDataURL('image/jpeg',0.85).split(',')[1];
+      const r=await fetch(AI_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({image:b64,mime:'image/jpeg'})});
+      if(r.status===429){status(T('وصلت للحد اليومي للقراءة بالذكاء الاصطناعي. جرب بكرة أو استخدم القراءة العادية.'),'err');break}
+      if(!r.ok){status(T('القراءة بالذكاء الاصطناعي مش متاحة دلوقتي. جرب القراءة العادية.'),'err');break}
+      const j=await r.json();
+      let rows=(j.rows||[]).map(x=>(Array.isArray(x)?x:[x]).map(v=>v==null?'':String(v)));
+      rows=rows.filter(x=>x.join('').replace(/\s/g,'').length>1);
+      if(!rows.length){continue}
+      const W=Math.max(...rows.map(x=>x.length));rows.forEach(x=>{while(x.length<W)x.push('')});
+      const arC=rows.flat().filter(v=>AR.test(v)).length,laC=rows.flat().filter(v=>/[A-Za-z]/.test(v)).length;
+      if(i===startI)$('rtl').checked=arC>laC;
+      rows=mergeHeader(rows);
+      words=[];
+      if(i===startI&&(!$('append').checked||!grid.length))grid=rows;
+      else{const w=Math.max(grid[0]?.length||0,rows[0]?.length||0);grid=[...grid,new Array(w).fill('')].concat(rows)}
+      cache={replace:true};render();$('stepOut').style.display='';bump();meter();doneAny=true;
+    }
+    if(doneAny){$('stepOut').scrollIntoView({behavior:'smooth'});status(LANG==='en'?`Done: ${grid.length} rows.`:`تمام: ${grid.length} صف اتقرأ.`,'ok')}
+    $('barI').style.width='100%';
+  }catch(e){console.error(e);status(T('حصلت مشكلة: ')+(e.message||e),'err')}
+  finally{$('go').disabled=false;setTimeout(()=>$('bar').style.display='none',800)}
+}
 $('go').onclick=async()=>{
+  if(AIMODE&&$('aiMode').checked)return aiRead();
   if(used()>=FREE_PER_DAY){const m=$('limitMsg');m.textContent=T('وصلت للحد المجاني النهارده (5 صفحات). جرب بكرة، أو استنى باقة Pro.');m.style.display='block';$('pricing').scrollIntoView({behavior:'smooth'});return}
   if(typeof Tesseract==='undefined'){status(T('مكتبة القراءة ما اتحملتش. تأكد من النت وجرب تاني.'),'err');return}
   $('go').disabled=true;$('bar').style.display='block';$('barI').style.width='2%';
