@@ -72,6 +72,7 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:30px}
 
 <div class="card">
   <h2><span class="num">1</span> الصورة</h2>
+  <div class="hint" id="trialBanner" style="font-weight:700">نسخة تجريبية: صفحتين مجانًا في اليوم.</div>
   <div class="drop" id="drop">
     <div>اسحب صورة هنا، أو اختار من الأزرار</div>
     <div class="btns">
@@ -139,17 +140,10 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:30px}
   <details style="margin-top:12px"><summary class="hint">النص الخام اللي اتقرأ</summary><pre id="raw" style="white-space:pre-wrap;color:var(--mute)"></pre></details>
 </div>
 <div class="card" id="pricing">
-  <h2>الباقات</h2>
-  <div class="plans">
-    <div class="plan"><h3>مجاني</h3><div class="price">$0</div>
-      <ul><li>5 صفحات في اليوم (صورة أو PDF حتى 10 صفحات في المرة)</li><li>قراءة عربي وإنجليزي على جهازك</li><li>تنزيل Excel وCSV</li></ul>
-      <div class="meter" id="meter"></div></div>
-    <div class="plan pro"><h3>SheetSnap Pro</h3><div class="pp" id="pp"><div id="pUsd"><div class="price">$7 <small>/ شهر</small></div><div class="hint" style="margin-top:0">أو $59 في السنة</div></div>
-      <div id="pEg"><div class="price">149 <small>جنيه / شهر</small></div><div class="hint" style="margin-top:0">أو 1,199 جنيه في السنة (اشتراك بالكارت). لو هتدفع بمحفظة موبايل أو كاش: باقة مدفوعة مقدمًا بنفس السعر بدون تجديد تلقائي.</div></div></div>
-      <ul><li>صفحات بلا حدود</li><li>قراءة بالذكاء الاصطناعي: خط اليد، الصور الوحشة، الورق المايل</li><li>سجل محفوظ على حسابك</li></ul>
-      <button class="pri" type="button" disabled id="proBtn">قريبًا</button></div>
-  </div>
-  <div class="hint">باقة Pro لسه ما اتفعلتش. الباقة المجانية بتشتغل بالكامل دلوقتي.</div>
+  <h2>نسخة تجريبية مجانية</h2>
+  <ul><li>صفحتين في اليوم (صورة أو صفحات PDF)</li><li>قراءة عربي وإنجليزي على جهازك، الصورة ما بتتبعتش لأي سيرفر</li><li>تنزيل Excel وCSV</li></ul>
+  <div class="meter" id="meter"></div>
+  <div class="hint">دي نسخة تجريبية. الحد بيتجدد كل يوم.</div>
 </div>
 <div id="limitMsg" class="status err" style="display:none"></div>
 <footer><div style="margin-top:8px">SheetSnap · OCR: Tesseract.js · Excel: SheetJS · <span>كله بيشتغل في المتصفح</span></div></footer>
@@ -382,7 +376,7 @@ async function aiRead(){
 }
 $('go').onclick=async()=>{
   if(AIMODE&&$('aiMode').checked)return aiRead();
-  if(used()>=FREE_PER_DAY){const m=$('limitMsg');m.textContent=T('وصلت للحد المجاني النهارده (5 صفحات). جرب بكرة، أو استنى باقة Pro.');m.style.display='block';$('pricing').scrollIntoView({behavior:'smooth'});return}
+  if(used()>=FREE_PER_DAY){const m=$('limitMsg');m.textContent=T('وصلت للحد التجريبي النهارده (صفحتين). جرب تاني بكرة.');m.style.display='block';$('pricing').scrollIntoView({behavior:'smooth'});return}
   if(typeof Tesseract==='undefined'){status(T('مكتبة القراءة ما اتحملتش. تأكد من النت وجرب تاني.'),'err');return}
   $('go').disabled=true;$('bar').style.display='block';$('barI').style.width='2%';
   try{
@@ -400,7 +394,7 @@ $('go').onclick=async()=>{
     const startI=cur,total=files.length;let doneAny=false;
     for(let i=startI;i<total;i++){
       if(i>startI){
-        if(used()>=FREE_PER_DAY){const m=$('limitMsg');m.textContent=T('وصلت للحد المجاني النهارده (5 صفحات). جرب بكرة، أو استنى باقة Pro.');m.style.display='block';break}
+        if(used()>=FREE_PER_DAY){const m=$('limitMsg');m.textContent=T('وصلت للحد التجريبي النهارده (صفحتين). جرب تاني بكرة.');m.style.display='block';break}
         cur=i;srcBmp=await createImageBitmap(files[i]);rot=0;words=[];draw();
         $('queue').textContent=`${i+1} / ${total}: ${files[i].name}`;
       }
@@ -674,7 +668,7 @@ const EN={"الصورة":"Image","اسحب صورة هنا، أو اختار م�
 "⬇️ نزّل Excel (.xlsx)":"⬇️ Download Excel (.xlsx)","نزّل CSV":"Download CSV","انسخ للحافظة":"Copy to clipboard","النص الخام اللي اتقرأ":"Raw text that was read",
 "في مصر بالجنيه: 149 جنيه / شهر أو 1,199 جنيه / سنة (اشتراك بالكارت). ولو هتدفع بمحفظة موبايل أو كاش: باقة مدفوعة مقدمًا بنفس السعر بدون تجديد تلقائي.":"In Egypt, in EGP: 149 EGP / month or 1,199 EGP / year (card subscription). Paying by mobile wallet or cash: prepaid pass at the same price, no auto-renewal.",
 "جنيه / شهر":"EGP / month","أو 1,199 جنيه في السنة (اشتراك بالكارت). لو هتدفع بمحفظة موبايل أو كاش: باقة مدفوعة مقدمًا بنفس السعر بدون تجديد تلقائي.":"or 1,199 EGP per year (card subscription). Paying by mobile wallet or cash: prepaid pass at the same price, no auto-renewal.",
-"الباقات":"Plans","مجاني":"Free","5 صفحات في اليوم (صورة أو PDF حتى 10 صفحات في المرة)":"5 pages per day (image or PDF, up to 10 pages per run)","قراءة عربي وإنجليزي على جهازك":"Arabic and English reading on your device","تنزيل Excel وCSV":"Excel and CSV export",
+"نسخة تجريبية مجانية":"Free trial","نسخة تجريبية: صفحتين مجانًا في اليوم.":"Free trial: 2 pages per day.","صفحتين في اليوم (صورة أو صفحات PDF)":"2 pages per day (image or PDF pages)","قراءة عربي وإنجليزي على جهازك، الصورة ما بتتبعتش لأي سيرفر":"Arabic and English reading on your device; your image is never uploaded","دي نسخة تجريبية. الحد بيتجدد كل يوم.":"This is a trial. The limit resets every day.","5 صفحات في اليوم (صورة أو PDF حتى 10 صفحات في المرة)":"5 pages per day (image or PDF, up to 10 pages per run)","قراءة عربي وإنجليزي على جهازك":"Arabic and English reading on your device","تنزيل Excel وCSV":"Excel and CSV export",
 "/ شهر":"/ month","أو $59 في السنة":"or $59 per year","صفحات بلا حدود":"Unlimited pages","قراءة بالذكاء الاصطناعي: خط اليد، الصور الوحشة، الورق المايل":"AI reading: handwriting, poor photos, skewed paper",
 "عدة صفحات وPDF في ملف واحد":"Multi-page and PDF in one file","سجل محفوظ على حسابك":"History saved to your account","قريبًا":"Coming soon",
 "باقة Pro لسه ما اتفعلتش. الباقة المجانية بتشتغل بالكامل دلوقتي.":"Pro is not active yet. The free plan works fully today.",
@@ -683,7 +677,7 @@ const EN={"الصورة":"Image","اسحب صورة هنا، أو اختار م�
 "ما لقيتش نص. جرب تلف الصورة أو تقرب أكتر.":"No text found. Try rotating the image or moving closer.","حصلت مشكلة: ":"Problem: ",
 "مكتبة القراءة ما اتحملتش. تأكد من النت وجرب تاني.":"The reading library did not load. Check your internet and try again.",
 "براجع الكلمات المش واضحة...":"Double-checking unclear words...","اتنسخ. الصقه في إكسل.":"Copied. Paste it into Excel.","المتصفح منع النسخ.":"The browser blocked copying.",
-"وصلت للحد المجاني النهارده (5 صفحات). جرب بكرة، أو استنى باقة Pro.":"You reached today's free limit (5 pages). Try tomorrow, or wait for Pro."};
+"وصلت للحد التجريبي النهارده (صفحتين). جرب تاني بكرة.":"You reached today's trial limit (2 pages). Please try again tomorrow."};
 let LANG=(()=>{try{return localStorage.getItem('ss_lang')}catch(e){return null}})()||((navigator.language||'').startsWith('ar')?'ar':'en');
 const T=ar=>LANG==='en'&&EN[ar]?EN[ar]:ar;
 const orig=new WeakMap();
@@ -704,7 +698,7 @@ function applyLang(){
 $('langBtn').onclick=()=>{LANG=LANG==='en'?'ar':'en';try{localStorage.setItem('ss_lang',LANG)}catch(e){}applyLang()};
 
 /* ---------- free daily limit (device-local, honest: not enforceable until Pro has a server) ---------- */
-const FREE_PER_DAY=5;
+const FREE_PER_DAY=2;
 function today(){return new Date().toISOString().slice(0,10)}
 function used(){try{const o=JSON.parse(localStorage.getItem('ss_use')||'{}');return o.d===today()?o.n:0}catch(e){return 0}}
 function bump(){try{localStorage.setItem('ss_use',JSON.stringify({d:today(),n:used()+1}))}catch(e){}}
@@ -713,9 +707,7 @@ applyLang();
 
 window.__test={get grid(){return grid},set grid(v){grid=v},reconstruct};
 
-(function(){let eg=false;try{const z=Intl.DateTimeFormat().resolvedOptions().timeZone||'';eg=z==='Africa/Cairo'}catch(e){}
-const u=document.getElementById('pUsd'),g=document.getElementById('pEg'),pp=document.getElementById('pp');
-if(eg){pp.insertBefore(g,u);u.classList.add('sec')}else{g.classList.add('sec')}})();
+
 </script>
 </body>
 </html>
