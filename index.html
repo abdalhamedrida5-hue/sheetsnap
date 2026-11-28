@@ -171,6 +171,31 @@ function loadPdfJs(){
   });
   pdfjsP.catch(()=>{pdfjsP=null});return pdfjsP;
 }
+function pdfTextWords(pg,v){
+  /* if the PDF page carries a real text layer, use its exact characters and positions instead of OCR */
+  return pg.getTextContent().then(tc=>{
+    const ws=[];
+    for(const it of (tc.items||[])){
+      const s=(it.str||'').replace(/[\u200e\u200f\u202a-\u202e]/g,'');
+      if(!s.trim())continue;
+      const tx=pdfjsLib.Util.transform(v.transform,it.transform);
+      const h=Math.hypot(tx[2],tx[3])||(it.height||10)*v.scale||12;
+      const w=Math.max(0,(it.width||0)*v.scale);
+      const x0=tx[4],y1=tx[5],y0=y1-h,x1=x0+w;
+      const parts=s.split(/\s+/).filter(Boolean);
+      const tot=parts.reduce((a,p)=>a+p.length,0)||1;
+      let cx=x0;
+      for(const p of parts){
+        const pw=w*p.length/tot;
+        const t=p.normalize('NFKC');
+        if(t)ws.push({t,c:99,x0:cx,x1:cx+pw,y0,y1});
+        cx+=pw;
+      }
+    }
+    const len=ws.reduce((a,w)=>a+w.t.length,0);
+    return len>=20?ws:[];
+  });
+}
 async function pdfToImages(f){
   const lib=await loadPdfJs();
   const doc=await lib.getDocument({data:await f.arrayBuffer()}).promise;
@@ -182,7 +207,9 @@ async function pdfToImages(f){
     const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);
     await pg.render({canvasContext:x,viewport:v}).promise;
     const b=await new Promise(r=>c.toBlob(r,'image/png'));
-    out.push(new File([b],f.name.replace(/\.pdf$/i,'')+' p'+i+'.png',{type:'image/png'}));
+    const nf=new File([b],f.name.replace(/\.pdf$/i,'')+' p'+i+'.png',{type:'image/png'});
+    try{const tw=await pdfTextWords(pg,v);if(tw.length)nf.__words=tw}catch(e){console.warn('text layer',e)}
+    out.push(nf);
   }
   if(doc.numPages>MAXPDF)status(LANG==='en'?`Only the first ${MAXPDF} pages are used (PDF has ${doc.numPages}).`:`اتاخدت أول ${MAXPDF} صفحات بس (الـ PDF فيه ${doc.numPages}).`,'err');
   return out;
@@ -382,7 +409,8 @@ $('go').onclick=async()=>{
   $('go').disabled=true;$('bar').style.display='block';$('barI').style.width='2%';
   try{
     const lang=$('lang').value;
-    if(!worker||workerLang!==lang){
+    const ensureWorker=async()=>{
+      if(worker&&workerLang===lang)return;
       if(worker)await worker.terminate();
       status(T('بحمّل نموذج القراءة...'));
       worker=await Tesseract.createWorker(lang,1,{langPath:LANGPATH,logger:m=>{
@@ -391,7 +419,7 @@ $('go').onclick=async()=>{
           status(T(m.status.includes('recogniz')?'بقرأ الورقة ':'جاري التحضير ')+p+'%')}}});
       await worker.setParameters({tessedit_pageseg_mode:'6',preserve_interword_spaces:'1',user_defined_dpi:'300'});
       workerLang=lang;
-    }
+    };
     const startI=cur,total=files.length;let doneAny=false;
     for(let i=startI;i<total;i++){
       if(i>startI){
@@ -400,6 +428,14 @@ $('go').onclick=async()=>{
         $('queue').textContent=`${i+1} / ${total}: ${files[i].name}`;
       }
       if(total>1)status((LANG==='en'?'Page ':'صفحة ')+(i+1)+' / '+total);
+      const preset=files[i].__words;
+      if(preset&&preset.length){
+        /* PDF with a real text layer: exact characters and positions, no OCR */
+        words=preset.map(w=>({t:w.t,c:w.c,x0:w.x0,x1:w.x1,y0:w.y0,y1:w.y1}));
+        $('raw').textContent=(i>startI?$('raw').textContent+'\n':'')+words.map(w=>w.t).join(' ');
+        status(T('قريت نص الـPDF مباشرة'));
+      }else{
+      await ensureWorker();
       let c=upscale(deskew(base()));if($('enh').checked)c=enhance(c);
       const res=await worker.recognize(c,{},{blocks:true,text:true});
       const d=res.data;
@@ -451,6 +487,7 @@ $('go').onclick=async()=>{
         }
       }catch(e){console.log('digitpass',e)}
       $('raw').textContent=(i>startI?$('raw').textContent+'\n':'')+(d.text||'');
+      }
       if(!words.length){if(total===1){status(T('ما لقيتش نص. جرب تلف الصورة أو تقرب أكتر.'),'err');return}continue}
       const arCount=words.filter(w=>AR.test(w.t)).length,laCount=words.filter(w=>/[A-Za-z]/.test(w.t)).length;
       if(i===startI)$('rtl').checked=arCount>laCount;
@@ -480,38 +517,51 @@ function reconstruct(ws,gapK,rtl){
     else lines.push({cy,w:[w]});
   }
   lines.sort((a,b)=>a.cy-b.cy);
-  const thr=mh*gapK;
-  const rows=lines.map(l=>{
-    l.w.sort((a,b)=>a.x0-b.x0);
+  const group=(l,thr)=>{
+    const sw=[...l.w].sort((a,b)=>a.x0-b.x0);
     const cells=[];let c=null;
-    for(const w of l.w){
+    for(const w of sw){
       if(c&&w.x0-c.x1<=thr){c.ws.push(w);c.x1=Math.max(c.x1,w.x1)}
       else{c={x0:w.x0,x1:w.x1,ws:[w]};cells.push(c)}
     }
-    for(const c of cells){
-      const ordered=(rtl&&c.ws.some(q=>AR.test(q.t)))?[...c.ws].reverse():c.ws;
-      c.text=ordered.map(q=>q.t).join(' ');
-    }
     return cells;
-  });
-  // column intervals from rows with 2+ cells
+  };
+  /* columns come from tightly grouped cells of the densest rows, so two numbers side by side stay two columns */
+  const tight=lines.map(l=>group(l,mh*0.9));
+  const maxCells=Math.max(...tight.map(r=>r.length),1);
+  const minCells=Math.max(2,Math.ceil(maxCells*0.75));
   const iv=[];
-  const lens=rows.map(r=>r.length).sort((a,b)=>a-b),p90=lens[Math.min(lens.length-1,Math.floor(lens.length*0.9))]||1;
-  const minCells=Math.max(2,Math.ceil(p90*0.6));
-  rows.forEach(r=>{if(r.length>=minCells)r.forEach(c=>iv.push([c.x0,c.x1]))});
-  if(!iv.length)rows.forEach(r=>r.forEach(c=>iv.push([c.x0,c.x1])));
+  tight.forEach(r=>{if(r.length>=minCells)r.forEach(c=>iv.push([c.x0,c.x1]))});
+  if(!iv.length)tight.forEach(r=>r.forEach(c=>iv.push([c.x0,c.x1])));
   iv.sort((a,b)=>a[0]-b[0]);
   const cols=[];
   for(const [a,b] of iv){
     const last=cols[cols.length-1];
-    if(last&&a<=last[1]+thr*0.9){last[1]=Math.max(last[1],b)}else cols.push([a,b]);
+    if(last&&a<=last[1]+mh*0.3)last[1]=Math.max(last[1],b);else cols.push([a,b]);
   }
-  const out=rows.map(r=>{
+  const thr=mh*gapK;
+  const out=lines.map(l=>{
     const row=new Array(cols.length).fill('');
-    for(const c of r){
-      let best=0,bo=-1e9;
-      cols.forEach((k,i)=>{const o=Math.min(k[1],c.x1)-Math.max(k[0],c.x0);if(o>bo){bo=o;best=i}});
-      row[best]=row[best]?row[best]+' '+c.text:c.text;
+    for(const c of group(l,thr)){
+      const hits=[];
+      cols.forEach((k,i)=>{const o=Math.min(k[1],c.x1)-Math.max(k[0],c.x0);
+        if(o>Math.min(c.x1-c.x0,k[1]-k[0])*0.25)hits.push(i)});
+      if(hits.length<=1){
+        let best=hits.length?hits[0]:0;
+        if(!hits.length){let bo=-1e9;cols.forEach((k,i)=>{const o=Math.min(k[1],c.x1)-Math.max(k[0],c.x0);if(o>bo){bo=o;best=i}})}
+        const ordered=(rtl&&c.ws.some(q=>AR.test(q.t)))?[...c.ws].reverse():c.ws;
+        const txt=ordered.map(q=>q.t).join(' ');
+        row[best]=row[best]?row[best]+' '+txt:txt;
+      }else{
+        /* a cell that really spans two columns (two numbers, a code next to its text) is split word by word */
+        const sw=[...c.ws].sort((a,b)=>rtl?b.x0-a.x0:a.x0-b.x0);
+        for(const w of sw){
+          const cx=(w.x0+w.x1)/2;let best=0,bo=-1e9;
+          cols.forEach((k,i)=>{const inside=cx>=k[0]&&cx<=k[1];const o=Math.min(k[1],w.x1)-Math.max(k[0],w.x0);
+            const sc=inside?1e6+o:o;if(sc>bo){bo=sc;best=i}});
+          row[best]=row[best]?row[best]+' '+w.t:w.t;
+        }
+      }
     }
     return rtl?row.reverse():row;
   });
@@ -555,6 +605,7 @@ function normDigits(s){return s.replace(/[\u0660-\u0669]/g,d=>d.charCodeAt(0)-0x
 function asNum(s){
   if(!$('nums').checked)return null;
   const t=normDigits(String(s)).trim().replace(/\s/g,'');
+  if(/^[-+]?0\d+$/.test(t))return null;   // codes like 040209800 / 050002 keep their leading zero: text, not a number
   if(/^[-+]?(\d{1,3}(,\d{3})+|\d+)(\.\d+)?$/.test(t))return parseFloat(t.replace(/,/g,''));
   if(/^[-+]?\d{1,3}(,\d{1,2})$/.test(t)||/^[-+]?\d+,\d{1,2}$/.test(t))return parseFloat(t.replace(',','.'));
   return null;
@@ -620,7 +671,12 @@ $('dl').onclick=async()=>{
   const nR=rows.length,rtl=$('rtl').checked;
   let maxN=0;const cnt=rows.map(r=>r.filter(v=>String(v??'').trim()!=='').length);cnt.forEach(n=>{if(n>maxN)maxN=n});
   const isTxt=v=>{v=String(v??'').trim();return v!==''&&typeof v==='string'&&asNum(v)===null};
-  const isNum=v=>typeof v==='number';let hi=0;const fd=rows.findIndex(r=>r.filter(isNum).length>=3);if(fd>0&&fd<=14)hi=fd-1;else if(fd<0)hi=rows.findIndex(r=>r.filter(isTxt).length>=2),hi=Math.max(0,hi);
+  const isNum=v=>typeof v==='number';
+  /* shade and freeze only a real header row: the row just above the first numeric row, and only near the top */
+  let hi=-1;
+  const fd=rows.findIndex(r=>r.filter(isNum).length>=2);
+  if(fd>=1&&fd<=3)hi=fd-1;
+  else if(fd<0&&rows.length&&rows[0].filter(isTxt).length>=2&&rows[0].filter(isNum).length===0)hi=0;
   const bd={style:'thin',color:{rgb:'808080'}},border={top:bd,bottom:bd,left:bd,right:bd};
   for(let ri=0;ri<nR;ri++)for(let ci=0;ci<W;ci++){
     const ref=XLSX.utils.encode_cell({r:ri,c:ci});let cell=ws[ref];
@@ -636,7 +692,7 @@ $('dl').onclick=async()=>{
   XLSX.utils.book_append_sheet(wb,ws,'Sheet1');
   let out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
   try{ /* freeze the header row: add a pane to the sheet view */
-    if(window.JSZip){
+    if(hi>=0&&window.JSZip){
       const z=await JSZip.loadAsync(out),f=z.file('xl/worksheets/sheet1.xml');
       let x=await f.async('string');
       const pane=`<pane ySplit="${hi+1}" topLeftCell="A${hi+2}" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft"/>`;
