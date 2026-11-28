@@ -371,40 +371,70 @@ const AI_URL='https://sheetsnap-ai.abdalhamedrida5.workers.dev';
 if(AIMODE)$('aiWrap').style.display='flex';
 if(AIMODE&&$('aiMode'))$('aiMode').onchange=()=>{try{meter()}catch(e){}};
 async function aiRead(){
-  $('go').disabled=true;$('bar').style.display='block';$('barI').style.width='30%';
+  $('go').disabled=true;$('bar').style.display='block';$('barI').style.width='8%';
   try{
-    const startI=cur,total=files.length;let doneAny=false;
+    const startI=cur,total=files.length;
+    const doc=(self.crypto&&crypto.randomUUID)?crypto.randomUUID():('d'+Date.now()+Math.random().toString(36).slice(2));
+    const shots=[];
     for(let i=startI;i<total;i++){
       if(i>startI){cur=i;srcBmp=await createImageBitmap(files[i]);rot=0;words=[];draw();$('queue').textContent=`${i+1} / ${total}: ${files[i].name}`}
-      status((LANG==='en'?'AI reading page ':'الذكاء الاصطناعي بيقرا صفحة ')+(i+1)+' / '+total);
+      status((LANG==='en'?'Preparing page ':'بجهز صفحة ')+(i+1)+' / '+total);
       const src=base(),k=Math.min(1,1600/Math.max(src.width,src.height));
       const c=document.createElement('canvas');c.width=Math.round(src.width*k);c.height=Math.round(src.height*k);
       const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(src,0,0,c.width,c.height);
-      const b64=c.toDataURL('image/jpeg',0.85).split(',')[1];
-      const ctl=new AbortController();const tid=setTimeout(()=>ctl.abort(),30000);
+      shots.push({mime:'image/jpeg',data:c.toDataURL('image/jpeg',0.85).split(',')[1]});
+      $('barI').style.width=Math.round(8+25*(i-startI+1)/Math.max(1,total))+'%';
+    }
+    const norm=v=>String(v==null?'':v).replace(/\s/g,'').toLowerCase();
+    const sameRow=(a,b)=>a.length===b.length&&a.every((v,i)=>norm(v)===norm(b[i]));
+    const B=4;let header=null,allRows=[];
+    for(let s=0;s<shots.length;s+=B){
+      const batch=shots.slice(s,s+B);
+      status(LANG==='en'?`AI reading pages ${s+1}-${s+batch.length} of ${total}...`:`الذكاء الاصطناعي بيقرا صفحات ${s+1}-${s+batch.length} من ${total}...`);
+      const ctl=new AbortController();const tid=setTimeout(()=>ctl.abort(),60000);
       let r;
-      try{r=await fetch(AI_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({image:b64,mime:'image/jpeg'}),signal:ctl.signal})}
+      try{r=await fetch(AI_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({images:batch,doc}),signal:ctl.signal})}
       catch(err){clearTimeout(tid);$('aiMode').checked=false;status(T('الذكاء الاصطناعي مش متاح دلوقتي. هقرا بالطريقة العادية.'),'err');setTimeout(()=>{try{$('go').click()}catch(e){}},1200);return}
       clearTimeout(tid);
       if(!r.ok){
+        let jj={};try{jj=await r.json()}catch(e){}
         $('aiMode').checked=false;
-        status(r.status===429?T('وصلت للحد اليومي للذكاء الاصطناعي (3 صفحات). هقرا بالطريقة العادية دلوقتي.'):T('الذكاء الاصطناعي مش متاح دلوقتي. هقرا بالطريقة العادية.'),'err');
+        status(jj.code==='doc_limit'?T('وصلت للحد اليومي للذكاء الاصطناعي (3 مستندات). هقرا بالطريقة العادية دلوقتي.'):T('الذكاء الاصطناعي مش متاح دلوقتي. هقرا بالطريقة العادية.'),'err');
         setTimeout(()=>{try{$('go').click()}catch(e){}},1200);return;
       }
       const j=await r.json();
       let rows=(j.rows||[]).map(x=>(Array.isArray(x)?x:[x]).map(v=>v==null?'':String(v)));
       rows=rows.filter(x=>x.join('').replace(/\s/g,'').length>1);
-      if(!rows.length){continue}
-      const W=Math.max(...rows.map(x=>x.length));rows.forEach(x=>{while(x.length<W)x.push('')});
-      const arC=rows.flat().filter(v=>AR.test(v)).length,laC=rows.flat().filter(v=>/[A-Za-z]/.test(v)).length;
-      if(i===startI)$('rtl').checked=arC>laC;
-      rows=mergeHeader(rows);
-      words=[];
-      if(i===startI&&(!$('append').checked||!grid.length))grid=rows;
-      else{const w=Math.max(grid[0]?.length||0,rows[0]?.length||0);grid=[...grid,new Array(w).fill('')].concat(rows)}
-      cache={replace:true};render();$('stepOut').style.display='';bump();meter();doneAny=true;
+      if(!rows.length)continue;
+      let Wb=Math.max(...rows.map(x=>x.length));rows.forEach(x=>{while(x.length<Wb)x.push('')});
+      if(!header){header=rows[0].slice();allRows=rows.slice()}
+      else{
+        let guard=0;while(rows.length&&guard<3&&sameRow(rows[0],header)){rows.shift();guard++}
+        if(rows.length&&rows[0].length===header.length){
+          const set=new Set(rows[0].map(norm));
+          if(header.every(x=>set.has(norm(x)))&&!sameRow(rows[0],header)){
+            const idx=header.map(x=>rows[0].findIndex(y=>norm(y)===norm(x)));
+            rows=rows.map(rw=>idx.map(i2=>rw[i2]??''));
+            rows.shift();
+          }
+        }
+        allRows=allRows.concat(rows);
+      }
+      $('barI').style.width=Math.round(33+40*Math.min(1,(s+batch.length)/Math.max(1,total)))+'%';
     }
-    if(doneAny){$('stepOut').scrollIntoView({behavior:'smooth'});status(LANG==='en'?`Done: ${grid.length} rows.`:`تمام: ${grid.length} صف اتقرأ.`,'ok')}
+    if(!allRows.length){status(T('مفيش جدول اتقرأ في المستند ده.'),'err');return}
+    const W=Math.max(...allRows.map(x=>x.length));allRows.forEach(x=>{while(x.length<W)x.push('')});
+    const arC=allRows.flat().filter(v=>AR.test(v)).length,laC=allRows.flat().filter(v=>/[A-Za-z]/.test(v)).length;
+    $('rtl').checked=arC>laC;
+    const finalRows=mergeHeader(allRows);
+    words=[];
+    if(!$('append').checked||!grid.length)grid=finalRows;
+    else{const w=Math.max(grid[0]?.length||0,finalRows[0]?.length||0);
+      const pad=r=>{const x=r.slice();while(x.length<w)x.push('');return x};
+      grid=grid.map(pad).concat(finalRows.map(pad))}
+    cache={replace:true};render();$('stepOut').style.display='';bump();meter();
+    $('stepOut').scrollIntoView({behavior:'smooth'});
+    status(LANG==='en'?`Done: ${grid.length} rows from ${total} page${total>1?'s':''}.`:`تمام: ${grid.length} صف من ${total} صفحة.`,'ok');
     $('barI').style.width='100%';
   }catch(e){console.error(e);status(T('حصلت مشكلة: ')+(e.message||e),'err')}
   finally{$('go').disabled=false;setTimeout(()=>$('bar').style.display='none',800)}
