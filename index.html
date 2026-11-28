@@ -735,7 +735,7 @@ async function buildXlsx(){
   try{out=await centerAll(out,window.JSZip)}catch(e){console.log('center',e)}
   return out;
 }
-window.__buildXlsx=buildXlsx;
+window.__buildXlsx=buildXlsx;window.__centerAll=centerAll;
 $('dl').onclick=async()=>{const out=await buildXlsx();saveBlob(new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`scan-${stamp()}.xlsx`)};
 $('csv').onclick=()=>{
   const q=v=>{v=String(v??'');return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
