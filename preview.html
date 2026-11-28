@@ -517,43 +517,51 @@ function reconstruct(ws,gapK,rtl){
     else lines.push({cy,w:[w]});
   }
   lines.sort((a,b)=>a.cy-b.cy);
-  const thr=mh*gapK;
-  const rows=lines.map(l=>{
-    l.w.sort((a,b)=>a.x0-b.x0);
+  const group=(l,thr)=>{
+    const sw=[...l.w].sort((a,b)=>a.x0-b.x0);
     const cells=[];let c=null;
-    for(const w of l.w){
+    for(const w of sw){
       if(c&&w.x0-c.x1<=thr){c.ws.push(w);c.x1=Math.max(c.x1,w.x1)}
       else{c={x0:w.x0,x1:w.x1,ws:[w]};cells.push(c)}
     }
-    for(const c of cells){
-      const ordered=(rtl&&c.ws.some(q=>AR.test(q.t)))?[...c.ws].reverse():c.ws;
-      c.text=ordered.map(q=>q.t).join(' ');
-    }
     return cells;
-  });
-  // column intervals: build them from the densest rows (the real table) so one wide row cannot merge columns
-  const iv=[];
-  const maxCells=Math.max(...rows.map(r=>r.length),1);
+  };
+  /* columns come from tightly grouped cells of the densest rows, so two numbers side by side stay two columns */
+  const tight=lines.map(l=>group(l,mh*0.9));
+  const maxCells=Math.max(...tight.map(r=>r.length),1);
   const minCells=Math.max(2,Math.ceil(maxCells*0.75));
-  rows.forEach(r=>{if(r.length>=minCells)r.forEach(c=>iv.push([c.x0,c.x1]))});
-  if(!iv.length)rows.forEach(r=>r.forEach(c=>iv.push([c.x0,c.x1])));
+  const iv=[];
+  tight.forEach(r=>{if(r.length>=minCells)r.forEach(c=>iv.push([c.x0,c.x1]))});
+  if(!iv.length)tight.forEach(r=>r.forEach(c=>iv.push([c.x0,c.x1])));
   iv.sort((a,b)=>a[0]-b[0]);
   const cols=[];
   for(const [a,b] of iv){
     const last=cols[cols.length-1];
-    if(last&&a<=last[1]+thr*0.9){last[1]=Math.max(last[1],b)}else cols.push([a,b]);
+    if(last&&a<=last[1]+mh*0.3)last[1]=Math.max(last[1],b);else cols.push([a,b]);
   }
-  /* place single words, not merged cells, so a wide cell cannot drag a whole column into its neighbour */
+  const thr=mh*gapK;
   const out=lines.map(l=>{
     const row=new Array(cols.length).fill('');
-    const sw=[...l.w].sort((a,b)=>rtl?b.x0-a.x0:a.x0-b.x0);
-    for(const w of sw){
-      const cx=(w.x0+w.x1)/2;
-      let best=0,bo=-1e9;
-      cols.forEach((k,i)=>{const inside=cx>=k[0]&&cx<=k[1];const o=Math.min(k[1],w.x1)-Math.max(k[0],w.x0);
-        const sc=inside?1e6+o:o;
-        if(sc>bo){bo=sc;best=i}});
-      row[best]=row[best]?row[best]+' '+w.t:w.t;
+    for(const c of group(l,thr)){
+      const hits=[];
+      cols.forEach((k,i)=>{const o=Math.min(k[1],c.x1)-Math.max(k[0],c.x0);
+        if(o>Math.min(c.x1-c.x0,k[1]-k[0])*0.25)hits.push(i)});
+      if(hits.length<=1){
+        let best=hits.length?hits[0]:0;
+        if(!hits.length){let bo=-1e9;cols.forEach((k,i)=>{const o=Math.min(k[1],c.x1)-Math.max(k[0],c.x0);if(o>bo){bo=o;best=i}})}
+        const ordered=(rtl&&c.ws.some(q=>AR.test(q.t)))?[...c.ws].reverse():c.ws;
+        const txt=ordered.map(q=>q.t).join(' ');
+        row[best]=row[best]?row[best]+' '+txt:txt;
+      }else{
+        /* a cell that really spans two columns (two numbers, a code next to its text) is split word by word */
+        const sw=[...c.ws].sort((a,b)=>rtl?b.x0-a.x0:a.x0-b.x0);
+        for(const w of sw){
+          const cx=(w.x0+w.x1)/2;let best=0,bo=-1e9;
+          cols.forEach((k,i)=>{const inside=cx>=k[0]&&cx<=k[1];const o=Math.min(k[1],w.x1)-Math.max(k[0],w.x0);
+            const sc=inside?1e6+o:o;if(sc>bo){bo=sc;best=i}});
+          row[best]=row[best]?row[best]+' '+w.t:w.t;
+        }
+      }
     }
     return rtl?row.reverse():row;
   });
