@@ -121,6 +121,7 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:30px}
     <label>حساسية الأعمدة <input type="range" id="gap" min="0.6" max="3.5" step="0.1" value="1.6"></label>
     <label><input type="checkbox" id="rtl"> الورقة من اليمين لليسار</label>
     <label><input type="checkbox" id="nums" checked> حوّل الأرقام لأرقام فعلية</label>
+    <label>شكل الأرقام: <select id="digits"><option value="en">1 2 3 (إنجليزي)</option><option value="ar">١ ٢ ٣ (عربي)</option></select></label>
   </div>
   <div class="bar2">
     <button class="small" id="addRow" type="button">+ صف</button>
@@ -638,11 +639,19 @@ function buildGrid(replace){
 }
 ['gap','rtl'].forEach(id=>$(id).addEventListener('change',()=>{if(words.length){buildGrid(true)}}));
 $('nums').addEventListener('change',render);
+try{const sd=localStorage.getItem('ss_digits');if(sd==='ar'||sd==='en')$('digits').value=sd}catch(e){}
+$('digits').addEventListener('change',()=>{try{localStorage.setItem('ss_digits',$('digits').value)}catch(e){}render()});
+/* one digit style for the whole sheet: all Western (real numbers stay numbers) or all Arabic-Indic (text) */
+function dg(v){
+  v=v==null?'':String(v);
+  if($('digits').value==='ar')return v.replace(/[0-9]/g,d=>String.fromCharCode(0x660+(+d))).replace(/[\u06F0-\u06F9]/g,d=>String.fromCharCode(0x660+d.charCodeAt(0)-0x6F0));
+  return v.replace(/[\u0660-\u0669]/g,d=>String.fromCharCode(48+d.charCodeAt(0)-0x660)).replace(/[\u06F0-\u06F9]/g,d=>String.fromCharCode(48+d.charCodeAt(0)-0x6F0)).replace(/\u066B/g,'.').replace(/\u066C/g,',');
+}
 
 /* ---------- editable table ---------- */
 function normDigits(s){return s.replace(/[\u0660-\u0669]/g,d=>d.charCodeAt(0)-0x660).replace(/[\u06F0-\u06F9]/g,d=>d.charCodeAt(0)-0x6F0).replace(/\u066B/g,'.').replace(/\u066C/g,',')}
 function asNum(s){
-  if(!$('nums').checked)return null;
+  if(!$('nums').checked||$('digits').value==='ar')return null;   // Arabic-Indic digits are written as text
   const t=normDigits(String(s)).trim().replace(/\s/g,'');
   if(/^[-+]?0\d+$/.test(t))return null;
   if(/^\d{10,}$/.test(t))return null;   // long digit strings (tax / registration IDs) stay text   // codes like 040209800 / 050002 keep their leading zero: text, not a number
@@ -660,7 +669,7 @@ function render(){
     const tr=document.createElement('tr');
     const n=document.createElement('td');n.className='rn';n.textContent=ri+1;tr.appendChild(n);
     for(let ci=0;ci<W;ci++){
-      const td=document.createElement('td');td.contentEditable='true';td.textContent=r[ci]??'';
+      const td=document.createElement('td');td.contentEditable='true';td.textContent=dg(r[ci]);
       if(asNum(r[ci]??'')!==null)td.className='numc';
       td.dir='auto';td.style.textAlign='start';
       td.addEventListener('input',()=>{grid[ri][ci]=td.textContent});
@@ -695,7 +704,7 @@ function numFmt(s){
   return (grouped?'#,##0':'0')+(dec?'.'+'0'.repeat(dec):'');
 }
 function exportRows(){
-  return grid.map(r=>r.map(v=>{const n=asNum(v);return n!==null?n:(v??'')}));
+  return grid.map(r=>r.map(v=>{const n=asNum(v);return n!==null?n:dg(v)}));
 }
 function stamp(){const d=new Date(),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`}
 function saveBlob(blob,name){
@@ -789,7 +798,7 @@ const EN={"الصورة":"Image","اسحب صورة هنا، أو اختار م�
 "لغة الورقة":"Paper language","عربي + إنجليزي":"Arabic + English","إنجليزي":"English","عربي":"Arabic",
 "تحسين الصورة (تباين وتبييض الخلفية)":"Enhance image (contrast, whiten background)","ضيف على نفس الشيت":"Append to same sheet",
 "⚡ حوّل لجدول":"⚡ Convert to table","أول مرة بتحمّل نموذج القراءة (بضع ميجا) وبعدها بيتخزن في المتصفح. محتاج نت للتحميل الأول.":"The first run downloads the reading model (a few MB); the browser caches it after that. Needs internet the first time.",
-"راجع وعدّل وصدّر":"Review, edit, export","حساسية الأعمدة":"Column sensitivity","الورقة من اليمين لليسار":"Paper is right-to-left","حوّل الأرقام لأرقام فعلية":"Convert numbers to real numbers",
+"راجع وعدّل وصدّر":"Review, edit, export","حساسية الأعمدة":"Column sensitivity","الورقة من اليمين لليسار":"Paper is right-to-left","حوّل الأرقام لأرقام فعلية":"Convert numbers to real numbers","شكل الأرقام:":"Digits:","1 2 3 (إنجليزي)":"1 2 3 (Western)","١ ٢ ٣ (عربي)":"١ ٢ ٣ (Arabic-Indic)",
 "+ صف":"+ Row","+ عمود":"+ Column","− آخر صف":"− Last row","− آخر عمود":"− Last column","ادمج الصف مع اللي فوقه":"Merge row into the one above",
 "اضغط على أي خلية وعدّلها. \"ادمج الصف\" بيشتغل على آخر خلية اخترتها.":"Click any cell to edit. \"Merge row\" works on the row of the last cell you selected.",
 "⬇️ نزّل Excel (.xlsx)":"⬇️ Download Excel (.xlsx)","نزّل CSV":"Download CSV","انسخ للحافظة":"Copy to clipboard","النص الخام اللي اتقرأ":"Raw text that was read",
