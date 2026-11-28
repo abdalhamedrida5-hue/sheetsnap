@@ -385,7 +385,7 @@ async function aiRead(){
       shots.push({mime:'image/jpeg',data:c.toDataURL('image/jpeg',0.85).split(',')[1]});
       $('barI').style.width=Math.round(8+25*(i-startI+1)/Math.max(1,total))+'%';
     }
-    const norm=v=>String(v==null?'':v).replace(/\s/g,'').toLowerCase();
+    const norm=v=>String(v==null?'':v).replace(/[\s\u064B-\u0652\u0640]/g,'').replace(/[\u0649\u06CC]/g,'\u064A').replace(/\u0629/g,'\u0647').replace(/[\u0623\u0625\u0622]/g,'\u0627').toLowerCase();
     const sameRow=(a,b)=>a.length===b.length&&a.every((v,i)=>norm(v)===norm(b[i]));
     const B=4;let header=null,allRows=[];
     for(let s=0;s<shots.length;s+=B){
