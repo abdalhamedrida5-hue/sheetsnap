@@ -135,6 +135,7 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:30px}
   <div class="hint">اضغط على أي خلية وعدّلها. "ادمج الصف" بيشتغل على آخر خلية اخترتها.</div>
   <div class="btns" style="justify-content:flex-start;margin-top:14px">
     <button class="pri" id="dl" type="button">⬇️ نزّل Excel (.xlsx)</button>
+    <button class="pri" id="dlw" type="button">⬇️ نزّل Word (.docx)</button>
     <button id="csv" type="button">نزّل CSV</button>
     <button id="copy" type="button">انسخ للحافظة</button>
   </div>
@@ -388,7 +389,7 @@ async function aiRead(){
     }
     const norm=v=>String(v==null?'':v).replace(/[\s\u064B-\u0652\u0640]/g,'').replace(/[\u0649\u06CC]/g,'\u064A').replace(/\u0629/g,'\u0647').replace(/[\u0623\u0625\u0622]/g,'\u0627').toLowerCase();
     const sameRow=(a,b)=>a.length===b.length&&a.every((v,i)=>norm(v)===norm(b[i]));
-    const B=4;let header=null,allRows=[],metaRows=[];
+    const B=4;let header=null,allRows=[],metaRows=[],footRows=[];const cleanPairs=a=>Array.isArray(a)?a.filter(p=>Array.isArray(p)&&(String(p[0]||'')+String(p[1]||'')).trim()).map(p=>[String(p[0]||''),String(p[1]||'')]):[];
     for(let s=0;s<shots.length;s+=B){
       const batch=shots.slice(s,s+B);
       status(LANG==='en'?`AI reading pages ${s+1}-${s+batch.length} of ${total}...`:`الذكاء الاصطناعي بيقرا صفحات ${s+1}-${s+batch.length} من ${total}...`);
@@ -404,7 +405,8 @@ async function aiRead(){
         setTimeout(()=>{try{$('go').click()}catch(e){}},1200);return;
       }
       const j=await r.json();
-      if(s===0&&Array.isArray(j.meta))metaRows=j.meta.filter(p=>Array.isArray(p)&&(String(p[0]||'')+String(p[1]||'')).trim()).map(p=>[String(p[0]||''),String(p[1]||'')]);
+      if(s===0)metaRows=cleanPairs(j.meta);
+      footRows=cleanPairs(j.footer);   // the last batch holds the last page, so its footer wins
       let rows=(j.rows||[]).map(x=>(Array.isArray(x)?x:[x]).map(v=>v==null?'':String(v)));
       rows=rows.filter(x=>x.join('').replace(/\s/g,'').length>1);
       if(!rows.length)continue;
@@ -429,12 +431,19 @@ async function aiRead(){
     const arC=allRows.flat().filter(v=>AR.test(v)).length,laC=allRows.flat().filter(v=>/[A-Za-z]/.test(v)).length;
     $('rtl').checked=arC>laC;
     const finalRows=mergeHeader(allRows);
-    if(metaRows.length){const Wm=Math.max(2,...finalRows.map(x=>x.length));const padm=x=>{const y=x.slice();while(y.length<Wm)y.push('');return y};finalRows.push(new Array(Wm).fill(''));metaRows.forEach(p=>finalRows.push(padm(p)))}   // header details go below the table so the table header stays at the top
+    let lay=null;
+    {const Wm=Math.max(2,...finalRows.map(x=>x.length));const padm=x=>{const y=x.slice();while(y.length<Wm)y.push('');return y};
+     const tbl=finalRows.slice(),top=metaRows.map(padm),bot=footRows.map(padm);
+     finalRows.length=0;
+     if(top.length){top.forEach(r=>finalRows.push(r));finalRows.push(new Array(Wm).fill(''))}
+     const t0=finalRows.length;tbl.forEach(r=>finalRows.push(r));const t1=finalRows.length;
+     if(bot.length){finalRows.push(new Array(Wm).fill(''));bot.forEach(r=>finalRows.push(r))}
+     lay={t0,t1,top:top.length,bot:bot.length}}   // whole page top to bottom: details, table, footer
     words=[];
-    if(!$('append').checked||!grid.length)grid=finalRows;
+    if(!$('append').checked||!grid.length){grid=finalRows;layout=lay}
     else{const w=Math.max(grid[0]?.length||0,finalRows[0]?.length||0);
       const pad=r=>{const x=r.slice();while(x.length<w)x.push('');return x};
-      grid=grid.map(pad).concat(finalRows.map(pad))}
+      grid=grid.map(pad).concat(finalRows.map(pad));layout=null}
     cache={replace:true};render();$('stepOut').style.display='';bump();meter();
     $('stepOut').scrollIntoView({behavior:'smooth'});
     status(LANG==='en'?`Done: ${grid.length} rows from ${total} page${total>1?'s':''}.`:`تمام: ${grid.length} صف من ${total} صفحة.`,'ok');
@@ -634,6 +643,7 @@ function buildGrid(replace){
     g=g.map(r=>keep.map(j=>r[j]));g=mergeHeader(g)}
   if(replace||!grid.length)grid=g;
   else{const w=Math.max(grid[0]?.length||0,g[0]?.length||0);grid=[...grid,new Array(w).fill('')].concat(g)}
+  layout=null;
   cache={replace};
   render();
 }
@@ -649,6 +659,7 @@ function dg(v){
 }
 
 /* ---------- editable table ---------- */
+let layout=null;   // {t0,t1}: rows of the real table inside the sheet (details above, footer below)
 function normDigits(s){return s.replace(/[\u0660-\u0669]/g,d=>d.charCodeAt(0)-0x660).replace(/[\u06F0-\u06F9]/g,d=>d.charCodeAt(0)-0x6F0).replace(/\u066B/g,'.').replace(/\u066C/g,',')}
 function asNum(s){
   if(!$('nums').checked||$('digits').value==='ar')return null;   // Arabic-Indic digits are written as text
@@ -750,9 +761,11 @@ async function buildXlsx(){
   const isNum=v=>typeof v==='number';
   /* shade and freeze only a real header row: the row just above the first numeric row, and only near the top */
   let hi=-1;
-  const fd=rows.findIndex(r=>r.filter(isNum).length>=2);
-  if(fd>=1&&fd<=3)hi=fd-1;
-  else if(fd<0&&rows.length&&rows[0].filter(isTxt).length>=2&&rows[0].filter(isNum).length===0)hi=0;
+  const L0=(layout&&layout.t0<nR)?layout.t0:0,L1=(layout&&layout.t0<nR)?Math.min(layout.t1,nR):nR;
+  const tr=rows.slice(L0,L1);
+  const fd=tr.findIndex(r=>r.filter(isNum).length>=2);
+  if(fd>=1&&fd<=3)hi=L0+fd-1;
+  else if(fd<0&&tr.length&&tr[0].filter(isTxt).length>=2&&tr[0].filter(isNum).length===0)hi=L0;
   const bd={style:'thin',color:{rgb:'808080'}},border={top:bd,bottom:bd,left:bd,right:bd};
   for(let ri=0;ri<nR;ri++)for(let ci=0;ci<W;ci++){
     const ref=XLSX.utils.encode_cell({r:ri,c:ci});let cell=ws[ref];
@@ -780,6 +793,53 @@ async function buildXlsx(){
   return out;
 }
 window.__buildXlsx=buildXlsx;window.__centerAll=centerAll;
+/* ---------- Word (.docx): the whole page in reading order, RTL aware ---------- */
+function xmlEsc(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'')}
+async function buildDocx(){
+  const rtl=$('rtl').checked,AR_=/[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/;
+  const rows=grid.map(r=>r.map(v=>dg(v)));
+  const nR=rows.length,W=Math.max(1,...rows.map(r=>r.length));
+  const t0=(layout&&layout.t0<nR)?layout.t0:0,t1=(layout&&layout.t0<nR)?Math.min(layout.t1,nR):nR;
+  const font='<w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial" w:eastAsia="Arial"/>';
+  const run=(t,b)=>{t=String(t);if(t==='')return '';return `<w:r><w:rPr>${font}${b?'<w:b/><w:bCs/>':''}${AR_.test(t)?'<w:rtl/>':''}<w:sz w:val="22"/><w:szCs w:val="22"/><w:lang w:val="en-US" w:bidi="ar-EG"/></w:rPr><w:t xml:space="preserve">${xmlEsc(t)}</w:t></w:r>`};
+  const para=(inner,jc,extra)=>`<w:p><w:pPr>${rtl?'<w:bidi/>':''}<w:spacing w:before="40" w:after="40"/>${jc?`<w:jc w:val="${jc}"/>`:''}${extra||''}</w:pPr>${inner}</w:p>`;
+  const textBlock=(a,b)=>{let x='';for(let i=a;i<b;i++){const c=rows[i].map(v=>String(v).trim()).filter(Boolean);if(!c.length)continue;
+      x+=c.length>=2?para(run(c[0]+': ',true)+run(c.slice(1).join('  '))):para(run(c[0]))}return x};
+  const cols=Math.max(1,...rows.slice(t0,t1).map(r=>{let n=r.length;while(n>1&&String(r[n-1]).trim()==='')n--;return n}));
+  const land=cols>5;
+  const pageW=land?16838:11906,usable=pageW-2*720;
+  let tbl='';
+  if(t1>t0){
+    const cw=Math.floor(usable/cols);
+    const hdr=(()=>{ /* first row of the table is the header when a numeric row follows */
+      const isN=v=>/^[-+]?\d[\d,.]*$/.test(String(v).trim());return rows[t0]&&rows[t0].filter(v=>String(v).trim()).length>=2&&rows[t0].filter(isN).length===0&&(rows[t0+1]||[]).some(isN)})();
+    tbl=`<w:tbl><w:tblPr><w:tblW w:w="${usable}" w:type="dxa"/>${rtl?'<w:bidiVisual/>':''}<w:tblBorders>`
+      +['top','left','bottom','right','insideH','insideV'].map(k=>`<w:${k} w:val="single" w:sz="4" w:space="0" w:color="808080"/>`).join('')
+      +`</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="60" w:type="dxa"/><w:right w:w="60" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${Array.from({length:cols},()=>`<w:gridCol w:w="${cw}"/>`).join('')}</w:tblGrid>`;
+    for(let i=t0;i<t1;i++){
+      const isH=hdr&&i===t0;
+      tbl+=`<w:tr><w:trPr><w:cantSplit/>${isH?'<w:tblHeader/>':''}</w:trPr>`;
+      for(let c=0;c<cols;c++){
+        tbl+=`<w:tc><w:tcPr><w:tcW w:w="${cw}" w:type="dxa"/>${isH?'<w:shd w:val="clear" w:color="auto" w:fill="D9D9D9"/>':''}<w:vAlign w:val="center"/></w:tcPr>${para(run(rows[i][c]??'',isH),'center')}</w:tc>`;
+      }
+      tbl+='</w:tr>';
+    }
+    tbl+='</w:tbl>';
+  }
+  const body=textBlock(0,t0)+(t0>0&&t1>t0?para(''):'')+tbl+(t1<nR?para(''):'')+textBlock(t1,nR);
+  const sect=`<w:sectPr><w:pgSz w:w="${pageW}" w:h="${land?11906:16838}"${land?' w:orient="landscape"':''}/><w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="360" w:footer="360" w:gutter="0"/>${rtl?'<w:bidi/>':''}</w:sectPr>`;
+  const doc=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body||para('')}${sect}</w:body></w:document>`;
+  const z=new JSZip();
+  z.file('[Content_Types].xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>');
+  z.file('_rels/.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
+  z.file('word/_rels/document.xml.rels','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>');
+  z.file('word/styles.xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="22"/><w:szCs w:val="22"/><w:lang w:val="en-US" w:bidi="ar-EG"/></w:rPr></w:rPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style></w:styles>');
+  z.file('word/document.xml',doc);
+  return await z.generateAsync({type:'uint8array',compression:'DEFLATE'});
+}
+window.__buildDocx=buildDocx;
+$('dlw').onclick=async()=>{const out=await buildDocx();saveBlob(new Blob([out],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}),`scan-${stamp()}.docx`)};
+
 $('dl').onclick=async()=>{const out=await buildXlsx();saveBlob(new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`scan-${stamp()}.xlsx`)};
 $('csv').onclick=()=>{
   const q=v=>{v=String(v??'');return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
@@ -801,7 +861,7 @@ const EN={"الصورة":"Image","اسحب صورة هنا، أو اختار م�
 "راجع وعدّل وصدّر":"Review, edit, export","حساسية الأعمدة":"Column sensitivity","الورقة من اليمين لليسار":"Paper is right-to-left","حوّل الأرقام لأرقام فعلية":"Convert numbers to real numbers","شكل الأرقام:":"Digits:","1 2 3 (إنجليزي)":"1 2 3 (Western)","١ ٢ ٣ (عربي)":"١ ٢ ٣ (Arabic-Indic)",
 "+ صف":"+ Row","+ عمود":"+ Column","− آخر صف":"− Last row","− آخر عمود":"− Last column","ادمج الصف مع اللي فوقه":"Merge row into the one above",
 "اضغط على أي خلية وعدّلها. \"ادمج الصف\" بيشتغل على آخر خلية اخترتها.":"Click any cell to edit. \"Merge row\" works on the row of the last cell you selected.",
-"⬇️ نزّل Excel (.xlsx)":"⬇️ Download Excel (.xlsx)","نزّل CSV":"Download CSV","انسخ للحافظة":"Copy to clipboard","النص الخام اللي اتقرأ":"Raw text that was read",
+"⬇️ نزّل Excel (.xlsx)":"⬇️ Download Excel (.xlsx)","⬇️ نزّل Word (.docx)":"⬇️ Download Word (.docx)","نزّل CSV":"Download CSV","انسخ للحافظة":"Copy to clipboard","النص الخام اللي اتقرأ":"Raw text that was read",
 "في مصر بالجنيه: 149 جنيه / شهر أو 1,199 جنيه / سنة (اشتراك بالكارت). ولو هتدفع بمحفظة موبايل أو كاش: باقة مدفوعة مقدمًا بنفس السعر بدون تجديد تلقائي.":"In Egypt, in EGP: 149 EGP / month or 1,199 EGP / year (card subscription). Paying by mobile wallet or cash: prepaid pass at the same price, no auto-renewal.",
 "جنيه / شهر":"EGP / month","أو 1,199 جنيه في السنة (اشتراك بالكارت). لو هتدفع بمحفظة موبايل أو كاش: باقة مدفوعة مقدمًا بنفس السعر بدون تجديد تلقائي.":"or 1,199 EGP per year (card subscription). Paying by mobile wallet or cash: prepaid pass at the same price, no auto-renewal.",
 "نسخة تجريبية مجانية":"Free trial","تنبيه: في وضع الذكاء الاصطناعي الصورة بتتبعت لـ Google Gemini (مفتاح تجريبي غير مدفوع). استخدم ملفات تجريبية بس، مش فواتير أو مستندات حقيقية.":"Notice: in AI mode the image is uploaded to Google Gemini (unpaid test key). Use sample files only, no real invoices or documents.","نسخة تجريبية: صفحتين مجانًا في اليوم.":"Free trial: 2 pages per day.","صفحتين في اليوم (صورة أو صفحات PDF)":"2 pages per day (image or PDF pages)","القراءة العادية على جهازك والصورة ما بتتبعتش لأي سيرفر":"Standard reading happens on your device; AI reading uploads the page to Google Gemini","دي نسخة تجريبية. الحد بيتجدد كل يوم.":"This is a trial. The limit resets every day.","5 صفحات في اليوم (صورة أو PDF حتى 10 صفحات في المرة)":"5 pages per day (image or PDF, up to 10 pages per run)","قراءة عربي وإنجليزي على جهازك":"Arabic and English reading on your device","تنزيل Excel وCSV":"Excel and CSV export",
