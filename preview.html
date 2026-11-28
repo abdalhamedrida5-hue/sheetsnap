@@ -543,16 +543,17 @@ function reconstruct(ws,gapK,rtl){
     const last=cols[cols.length-1];
     if(last&&a<=last[1]+thr*0.9){last[1]=Math.max(last[1],b)}else cols.push([a,b]);
   }
-  const medW=median(cols.map(k=>k[1]-k[0]));
-  const out=rows.map(r=>{
+  /* place single words, not merged cells, so a wide cell cannot drag a whole column into its neighbour */
+  const out=lines.map(l=>{
     const row=new Array(cols.length).fill('');
-    for(const c of r){
+    const sw=[...l.w].sort((a,b)=>rtl?b.x0-a.x0:a.x0-b.x0);
+    for(const w of sw){
+      const cx=(w.x0+w.x1)/2;
       let best=0,bo=-1e9;
-      const cx=(c.x0+c.x1)/2,cw=c.x1-c.x0;
-      cols.forEach((k,i)=>{const o=Math.min(k[1],c.x1)-Math.max(k[0],c.x0);
-        const sc=cw<=medW*1.2?((cx>=k[0]&&cx<=k[1])?1e6:o):o;
+      cols.forEach((k,i)=>{const inside=cx>=k[0]&&cx<=k[1];const o=Math.min(k[1],w.x1)-Math.max(k[0],w.x0);
+        const sc=inside?1e6+o:o;
         if(sc>bo){bo=sc;best=i}});
-      row[best]=row[best]?row[best]+' '+c.text:c.text;
+      row[best]=row[best]?row[best]+' '+w.t:w.t;
     }
     return rtl?row.reverse():row;
   });
