@@ -781,7 +781,7 @@ async function buildXlsx(){
   XLSX.utils.book_append_sheet(wb,ws,'Sheet1');
   let out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
   try{ /* freeze the header row: add a pane to the sheet view */
-    if(hi>=0&&window.JSZip){
+    if(hi>=0&&hi<=3&&window.JSZip){   // freeze only a header near the top; with a long details block above it, freezing would eat the screen
       const z=await JSZip.loadAsync(out),f=z.file('xl/worksheets/sheet1.xml');
       let x=await f.async('string');
       const pane=`<pane ySplit="${hi+1}" topLeftCell="A${hi+2}" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft"/>`;
@@ -801,7 +801,8 @@ async function buildDocx(){
   const nR=rows.length,W=Math.max(1,...rows.map(r=>r.length));
   const t0=(layout&&layout.t0<nR)?layout.t0:0,t1=(layout&&layout.t0<nR)?Math.min(layout.t1,nR):nR;
   const font='<w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial" w:eastAsia="Arial"/>';
-  const run=(t,b)=>{t=String(t);if(t==='')return '';return `<w:r><w:rPr>${font}${b?'<w:b/><w:bCs/>':''}${AR_.test(t)?'<w:rtl/>':''}<w:sz w:val="22"/><w:szCs w:val="22"/><w:lang w:val="en-US" w:bidi="ar-EG"/></w:rPr><w:t xml:space="preserve">${xmlEsc(t)}</w:t></w:r>`};
+  const run=(t,b)=>{t=String(t);if(t==='')return '';if(rtl&&!AR_.test(t))t='\u200E'+t;   // keep Latin/number cells in reading order inside an RTL page
+    return `<w:r><w:rPr>${font}${b?'<w:b/><w:bCs/>':''}${AR_.test(t)?'<w:rtl/>':''}<w:sz w:val="22"/><w:szCs w:val="22"/><w:lang w:val="en-US" w:bidi="ar-EG"/></w:rPr><w:t xml:space="preserve">${xmlEsc(t)}</w:t></w:r>`};
   const para=(inner,jc,extra)=>`<w:p><w:pPr>${rtl?'<w:bidi/>':''}<w:spacing w:before="40" w:after="40"/>${jc?`<w:jc w:val="${jc}"/>`:''}${extra||''}</w:pPr>${inner}</w:p>`;
   const textBlock=(a,b)=>{let x='';for(let i=a;i<b;i++){const c=rows[i].map(v=>String(v).trim()).filter(Boolean);if(!c.length)continue;
       x+=c.length>=2?para(run(c[0]+': ',true)+run(c.slice(1).join('  '))):para(run(c[0]))}return x};
