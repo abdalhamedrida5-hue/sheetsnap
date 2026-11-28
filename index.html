@@ -387,7 +387,7 @@ async function aiRead(){
     }
     const norm=v=>String(v==null?'':v).replace(/[\s\u064B-\u0652\u0640]/g,'').replace(/[\u0649\u06CC]/g,'\u064A').replace(/\u0629/g,'\u0647').replace(/[\u0623\u0625\u0622]/g,'\u0627').toLowerCase();
     const sameRow=(a,b)=>a.length===b.length&&a.every((v,i)=>norm(v)===norm(b[i]));
-    const B=4;let header=null,allRows=[];
+    const B=4;let header=null,allRows=[],metaRows=[];
     for(let s=0;s<shots.length;s+=B){
       const batch=shots.slice(s,s+B);
       status(LANG==='en'?`AI reading pages ${s+1}-${s+batch.length} of ${total}...`:`الذكاء الاصطناعي بيقرا صفحات ${s+1}-${s+batch.length} من ${total}...`);
@@ -403,6 +403,7 @@ async function aiRead(){
         setTimeout(()=>{try{$('go').click()}catch(e){}},1200);return;
       }
       const j=await r.json();
+      if(s===0&&Array.isArray(j.meta))metaRows=j.meta.filter(p=>Array.isArray(p)&&(String(p[0]||'')+String(p[1]||'')).trim()).map(p=>[String(p[0]||''),String(p[1]||'')]);
       let rows=(j.rows||[]).map(x=>(Array.isArray(x)?x:[x]).map(v=>v==null?'':String(v)));
       rows=rows.filter(x=>x.join('').replace(/\s/g,'').length>1);
       if(!rows.length)continue;
@@ -427,6 +428,7 @@ async function aiRead(){
     const arC=allRows.flat().filter(v=>AR.test(v)).length,laC=allRows.flat().filter(v=>/[A-Za-z]/.test(v)).length;
     $('rtl').checked=arC>laC;
     const finalRows=mergeHeader(allRows);
+    if(metaRows.length){const Wm=Math.max(2,...finalRows.map(x=>x.length));const padm=x=>{const y=x.slice();while(y.length<Wm)y.push('');return y};finalRows.push(new Array(Wm).fill(''));metaRows.forEach(p=>finalRows.push(padm(p)))}   // header details go below the table so the table header stays at the top
     words=[];
     if(!$('append').checked||!grid.length)grid=finalRows;
     else{const w=Math.max(grid[0]?.length||0,finalRows[0]?.length||0);
@@ -642,9 +644,11 @@ function normDigits(s){return s.replace(/[\u0660-\u0669]/g,d=>d.charCodeAt(0)-0x
 function asNum(s){
   if(!$('nums').checked)return null;
   const t=normDigits(String(s)).trim().replace(/\s/g,'');
-  if(/^[-+]?0\d+$/.test(t))return null;   // codes like 040209800 / 050002 keep their leading zero: text, not a number
+  if(/^[-+]?0\d+$/.test(t))return null;
+  if(/^\d{10,}$/.test(t))return null;   // long digit strings (tax / registration IDs) stay text   // codes like 040209800 / 050002 keep their leading zero: text, not a number
   if(/^[-+]?(\d{1,3}(,\d{3})+|\d+)(\.\d+)?$/.test(t))return parseFloat(t.replace(/,/g,''));
   if(/^[-+]?\d{1,3}(,\d{1,2})$/.test(t)||/^[-+]?\d+,\d{1,2}$/.test(t))return parseFloat(t.replace(',','.'));
+  if(/^[-+]?\d{1,3}(,\d{3})+,\d{2}$/.test(t))return parseFloat(t.replace(/,(?=\d{2}$)/,'.').replace(/,/g,''));   // Egyptian style 82,560,00 = 82560.00
   return null;
 }
 function render(){
@@ -684,7 +688,8 @@ function numFmt(s){
   if(asNum(s)===null)return null;
   const t=normDigits(String(s)).trim().replace(/\s/g,'');
   const m=t.match(/[.,](\d{1,2})$/);
-  const grouped=/\d,\d{3}(?![\d])/.test(t)&&!/,\d{1,2}$/.test(t);
+  const eg=/^[-+]?\d{1,3}(,\d{3})+,\d{2}$/.test(t);
+  const grouped=eg||(/\d,\d{3}(?![\d])/.test(t)&&!/,\d{1,2}$/.test(t));
   const dec=m&&!(m[0][0]===','&&/,\d{3}$/.test(t))?m[1].length:0;
   if(!dec&&!grouped)return null;
   return (grouped?'#,##0':'0')+(dec?'.'+'0'.repeat(dec):'');
