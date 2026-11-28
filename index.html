@@ -67,8 +67,8 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:30px}
 <body>
 <div class="wrap">
 <header><div class="logo">SS</div><div><h1>SheetSnap</h1><div style="color:var(--mute);font-size:14px;margin-top:-2px">صوّر الورقة، خدها إكسل · Snap a paper, get a spreadsheet</div></div><button class="small lang" id="langBtn" type="button">English</button></header>
-<p class="sub" lang="en" dir="ltr" style="margin-bottom:4px;text-align:start">Photograph any printed page and get an Excel file. Standard reading runs in your browser; no image is uploaded. (The experimental AI option, if shown, uploads the image to Gemini.)</p>
-<p class="sub">صوّر أي ورقة مطبوعة (فاتورة، جدول، كشف) واستلم ملف إكسل جاهز. المعالجة كلها على جهازك، مفيش صورة بتترفع لأي سيرفر.</p>
+<p class="sub" lang="en" dir="ltr" style="margin-bottom:4px;text-align:start">Photograph any printed page and get an Excel file. AI reading is on by default and sends the page to Google Gemini to read it; switch it off to read on your device without uploading anything.</p>
+<p class="sub">صوّر أي ورقة مطبوعة (فاتورة، جدول، كشف) واستلم ملف إكسل جاهز. القراءة بالذكاء الاصطناعي شغالة افتراضيًا وبتتبعت الصفحة لـ Google Gemini عشان تقراها؛ اقفلها لو عايز القراءة على جهازك من غير رفع.</p>
 
 <div class="card">
   <h2><span class="num">1</span> الصورة</h2>
@@ -141,7 +141,7 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:30px}
 </div>
 <div class="card" id="pricing">
   <h2>نسخة تجريبية مجانية</h2>
-  <ul><li>صفحتين في اليوم (صورة أو صفحات PDF)</li><li>القراءة العادية على جهازك والصورة ما بتتبعتش لأي سيرفر</li><li>تنزيل Excel وCSV</li></ul>
+  <ul><li>صفحتين في اليوم (صورة أو صفحات PDF)</li><li>القراءة العادية على جهازك من غير رفع، والذكاء الاصطناعي بيبعت الصفحة لـ Google Gemini للقراءة بس</li><li>تنزيل Excel وCSV</li></ul>
   <div class="meter" id="meter"></div>
   <div class="hint">دي نسخة تجريبية. الحد بيتجدد كل يوم.</div>
 </div>
@@ -368,7 +368,8 @@ const status=(t,cls)=>{$('status').className='status '+(cls||'');$('status').tex
 let worker=null,workerLang=null,dWorker=null,aWorker=null,eWorker=null;const LANGPATH=undefined;
 const AIMODE=true;   // AI reading is on for all visitors (server-side caps: 3 pages/visitor/day, 100/day total, monthly budget stop)
 const AI_URL='https://sheetsnap-ai.abdalhamedrida5.workers.dev';
-if(AIMODE)$('aiWrap').style.display='';
+if(AIMODE)$('aiWrap').style.display='flex';
+if(AIMODE&&$('aiMode'))$('aiMode').onchange=()=>{try{meter()}catch(e){}};
 async function aiRead(){
   $('go').disabled=true;$('bar').style.display='block';$('barI').style.width='30%';
   try{
@@ -727,7 +728,7 @@ const EN={"الصورة":"Image","اسحب صورة هنا، أو اختار م�
 "⬇️ نزّل Excel (.xlsx)":"⬇️ Download Excel (.xlsx)","نزّل CSV":"Download CSV","انسخ للحافظة":"Copy to clipboard","النص الخام اللي اتقرأ":"Raw text that was read",
 "في مصر بالجنيه: 149 جنيه / شهر أو 1,199 جنيه / سنة (اشتراك بالكارت). ولو هتدفع بمحفظة موبايل أو كاش: باقة مدفوعة مقدمًا بنفس السعر بدون تجديد تلقائي.":"In Egypt, in EGP: 149 EGP / month or 1,199 EGP / year (card subscription). Paying by mobile wallet or cash: prepaid pass at the same price, no auto-renewal.",
 "جنيه / شهر":"EGP / month","أو 1,199 جنيه في السنة (اشتراك بالكارت). لو هتدفع بمحفظة موبايل أو كاش: باقة مدفوعة مقدمًا بنفس السعر بدون تجديد تلقائي.":"or 1,199 EGP per year (card subscription). Paying by mobile wallet or cash: prepaid pass at the same price, no auto-renewal.",
-"نسخة تجريبية مجانية":"Free trial","تنبيه: في وضع الذكاء الاصطناعي الصورة بتتبعت لـ Google Gemini (مفتاح تجريبي غير مدفوع). استخدم ملفات تجريبية بس، مش فواتير أو مستندات حقيقية.":"Notice: in AI mode the image is uploaded to Google Gemini (unpaid test key). Use sample files only, no real invoices or documents.","نسخة تجريبية: صفحتين مجانًا في اليوم.":"Free trial: 2 pages per day.","صفحتين في اليوم (صورة أو صفحات PDF)":"2 pages per day (image or PDF pages)","القراءة العادية على جهازك والصورة ما بتتبعتش لأي سيرفر":"Standard reading happens on your device; your image is not uploaded","دي نسخة تجريبية. الحد بيتجدد كل يوم.":"This is a trial. The limit resets every day.","5 صفحات في اليوم (صورة أو PDF حتى 10 صفحات في المرة)":"5 pages per day (image or PDF, up to 10 pages per run)","قراءة عربي وإنجليزي على جهازك":"Arabic and English reading on your device","تنزيل Excel وCSV":"Excel and CSV export",
+"نسخة تجريبية مجانية":"Free trial","تنبيه: في وضع الذكاء الاصطناعي الصورة بتتبعت لـ Google Gemini (مفتاح تجريبي غير مدفوع). استخدم ملفات تجريبية بس، مش فواتير أو مستندات حقيقية.":"Notice: in AI mode the image is uploaded to Google Gemini (unpaid test key). Use sample files only, no real invoices or documents.","نسخة تجريبية: صفحتين مجانًا في اليوم.":"Free trial: 2 pages per day.","صفحتين في اليوم (صورة أو صفحات PDF)":"2 pages per day (image or PDF pages)","القراءة العادية على جهازك والصورة ما بتتبعتش لأي سيرفر":"Standard reading happens on your device; AI reading uploads the page to Google Gemini","دي نسخة تجريبية. الحد بيتجدد كل يوم.":"This is a trial. The limit resets every day.","5 صفحات في اليوم (صورة أو PDF حتى 10 صفحات في المرة)":"5 pages per day (image or PDF, up to 10 pages per run)","قراءة عربي وإنجليزي على جهازك":"Arabic and English reading on your device","تنزيل Excel وCSV":"Excel and CSV export",
 "/ شهر":"/ month","أو $59 في السنة":"or $59 per year","صفحات بلا حدود":"Unlimited pages","قراءة بالذكاء الاصطناعي: خط اليد، الصور الوحشة، الورق المايل":"AI reading: handwriting, poor photos, skewed paper",
 "عدة صفحات وPDF في ملف واحد":"Multi-page and PDF in one file","سجل محفوظ على حسابك":"History saved to your account","قريبًا":"Coming soon",
 "باقة Pro لسه ما اتفعلتش. الباقة المجانية بتشتغل بالكامل دلوقتي.":"Pro is not active yet. The free plan works fully today.",
@@ -761,7 +762,9 @@ const FREE_PER_DAY=2;
 function today(){return new Date().toISOString().slice(0,10)}
 function used(){try{const o=JSON.parse(localStorage.getItem('ss_use')||'{}');return o.d===today()?o.n:0}catch(e){return 0}}
 function bump(){try{localStorage.setItem('ss_use',JSON.stringify({d:today(),n:used()+1}))}catch(e){}}
-function meter(){const left=Math.max(0,FREE_PER_DAY-used());$('meter').textContent=LANG==='en'?`${left} of ${FREE_PER_DAY} free pages left today`:`فاضل ${left} من ${FREE_PER_DAY} صفحات مجانية النهارده`}
+function meter(){const left=Math.max(0,FREE_PER_DAY-used());const ai=$('aiMode')&&$('aiMode').checked;
+$('meter').textContent=ai?(LANG==='en'?`AI reading: 3 pages per day · standard reading: ${left} of ${FREE_PER_DAY} left today`:`قراءة الذكاء الاصطناعي: 3 صفحات في اليوم · القراءة العادية: فاضل ${left} من ${FREE_PER_DAY} النهارده`)
+:(LANG==='en'?`${left} of ${FREE_PER_DAY} free pages left today`:`فاضل ${left} من ${FREE_PER_DAY} صفحات مجانية النهارده`)}
 applyLang();
 
 window.__test={get grid(){return grid},set grid(v){grid=v},reconstruct};
