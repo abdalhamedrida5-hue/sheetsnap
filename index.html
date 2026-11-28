@@ -105,7 +105,7 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:30px}
           </select></label>
         <label><input type="checkbox" id="enh" checked> تحسين الصورة (تباين وتبييض الخلفية)</label>
         <label><input type="checkbox" id="append"> ضيف على نفس الشيت</label>
-        <label id="aiWrap" style="display:none"><input type="checkbox" id="aiMode"> قراءة بالذكاء الاصطناعي (تجريبي)<div class="hint" style="color:#b00020;font-weight:700">تنبيه: في وضع الذكاء الاصطناعي الصورة بتتبعت لـ Google Gemini (مفتاح تجريبي غير مدفوع). استخدم ملفات تجريبية بس، مش فواتير أو مستندات حقيقية.</div></label>
+        <label id="aiWrap" style="display:none"><input type="checkbox" id="aiMode" checked> قراءة بالذكاء الاصطناعي<div class="hint">بتقرا الجداول والورق الممسوح بدقة أعلى. الصفحة بتتبعت لـ Google Gemini للقراءة بس، والحد 3 صفحات في اليوم.</div></label>
       </div>
       <div class="btns" style="justify-content:flex-start"><button class="pri" id="go" type="button">⚡ حوّل لجدول</button></div>
       <div class="bar" id="bar"><i id="barI"></i></div>
@@ -366,11 +366,10 @@ $('rotR').onclick=()=>{rot=(rot+1)%4;draw()};
 /* ---------- OCR ---------- */
 const status=(t,cls)=>{$('status').className='status '+(cls||'');$('status').textContent=t};
 let worker=null,workerLang=null,dWorker=null,aWorker=null,eWorker=null;const LANGPATH=undefined;
-const AIMODE=new URLSearchParams(location.search).get('ai')==='1';   // AI reading is off for customers; enabled only with ?ai=1 (testing)
+const AIMODE=true;   // AI reading is on for all visitors (server-side caps: 3 pages/visitor/day, 100/day total, monthly budget stop)
 const AI_URL='https://sheetsnap-ai.abdalhamedrida5.workers.dev';
 if(AIMODE)$('aiWrap').style.display='';
 async function aiRead(){
-  if(!confirm(LANG==='en'?'AI mode uploads this image to Google Gemini on an unpaid test key. Use sample files only, never real invoices or personal data. Continue?':'وضع الذكاء الاصطناعي بيرفع الصورة لـ Google Gemini بمفتاح تجريبي غير مدفوع. استخدم ملفات تجريبية بس، مش فواتير أو بيانات حقيقية. تكمل؟'))return;
   $('go').disabled=true;$('bar').style.display='block';$('barI').style.width='30%';
   try{
     const startI=cur,total=files.length;let doneAny=false;
@@ -382,8 +381,11 @@ async function aiRead(){
       const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(src,0,0,c.width,c.height);
       const b64=c.toDataURL('image/jpeg',0.85).split(',')[1];
       const r=await fetch(AI_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({image:b64,mime:'image/jpeg'})});
-      if(r.status===429){status(T('وصلت للحد اليومي للقراءة بالذكاء الاصطناعي. جرب بكرة أو استخدم القراءة العادية.'),'err');break}
-      if(!r.ok){status(T('القراءة بالذكاء الاصطناعي مش متاحة دلوقتي. جرب القراءة العادية.'),'err');break}
+      if(!r.ok){
+        $('aiMode').checked=false;
+        status(r.status===429?T('وصلت للحد اليومي للذكاء الاصطناعي (3 صفحات). هقرا بالطريقة العادية دلوقتي.'):T('الذكاء الاصطناعي مش متاح دلوقتي. هقرا بالطريقة العادية.'),'err');
+        setTimeout(()=>{try{$('go').click()}catch(e){}},1200);return;
+      }
       const j=await r.json();
       let rows=(j.rows||[]).map(x=>(Array.isArray(x)?x:[x]).map(v=>v==null?'':String(v)));
       rows=rows.filter(x=>x.join('').replace(/\s/g,'').length>1);
