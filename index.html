@@ -707,7 +707,7 @@ async function centerAll(out,zip){
   const start=open.index+open[0].length,end=stx.indexOf('</cellXfs>',start);if(end<0)return out;
   const xfs=(stx.slice(start,end).match(/<xf\b[^>]*\/>|<xf\b[^>]*>[\s\S]*?<\/xf>/g))||[];
   const AL='<alignment horizontal="center" vertical="center" wrapText="1"/>';
-  const mk=xf=>{let o=xf.replace(/<alignment\b[^>]*\/>/g,'').replace(/<\/alignment>/g,'');
+  const mk=xf=>{let o=xf.replace(/<alignment\b[^>]*\/>/g,'').replace(/<\/alignment>/g,'').replace(/\sapplyAlignment="[^"]*"/g,'');
     if(/\/>$/.test(o))return o.slice(0,-2)+' applyAlignment="1">'+AL+'</xf>';
     return o.replace(/<xf\b/,'<xf applyAlignment="1"').replace(/<\/xf>$/,'')+AL+'</xf>'};
   const list=xfs.slice(),map=new Map();
