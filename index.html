@@ -26,10 +26,10 @@ button:hover,.btn:hover{border-color:#456583}
 button.pri{background:var(--ac);border-color:var(--ac);color:#06251c;font-weight:700}
 button.pri:hover{background:var(--ac2)}
 .fi{width:26px;height:26px;flex:none;border-radius:6px}
-.fmt{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:4px 0 14px}
-.fmtl{font-weight:700}
-.fmtb{padding:8px 16px;gap:10px;font-weight:700;border:2px solid var(--line);font-size:16px}
-.fmtb .fi{width:34px;height:34px;border-radius:8px}
+.fmt{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:4px 0 14px}
+.fmtl{font-weight:700;grid-column:1/-1}
+.fmtb{padding:8px 8px;gap:10px;font-weight:700;border:2px solid var(--line);font-size:16px;width:100%;min-width:0;justify-content:center}
+.fmtb .fi{width:32px;height:32px;border-radius:8px}
 .fmtb.on{border-color:var(--ac);background:#1b2c38;box-shadow:0 0 0 2px rgba(0,0,0,.2)}
 #fmtW.on{border-color:#4f8de0}
 #dl.hl,#dlw.hl{outline:3px solid #fff;outline-offset:2px;order:-1}
