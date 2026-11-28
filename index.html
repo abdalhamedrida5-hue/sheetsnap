@@ -121,6 +121,7 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:30px}
         <label><input type="checkbox" id="enh" checked> تحسين الصورة (تباين وتبييض الخلفية)</label>
         <label><input type="checkbox" id="append"> ضيف على نفس الشيت</label>
         <label id="aiWrap" style="display:none"><input type="checkbox" id="aiMode" checked> قراءة بالذكاء الاصطناعي<div class="hint">بتقرا الجداول والورق الممسوح بدقة أعلى. الصفحة بتتبعت لـ Google Gemini للقراءة بس، والحد 3 صفحات في اليوم.</div></label>
+        <div class="hint" style="margin-top:6px;opacity:.85">راجع الأرقام وأرقام التليفونات بعينك قبل ما تعتمد الملف، خصوصًا لو الصورة من الموبايل.</div>
       </div>
       <div class="btns" style="justify-content:flex-start"><button class="pri" id="go" type="button">⚡ حوّل لجدول</button></div>
       <div class="bar" id="bar"><i id="barI"></i></div>
@@ -884,7 +885,7 @@ $('copy').onclick=async()=>{
 };
 
 /* ---------- language ---------- */
-const EN={"الصورة":"Image","اسحب صورة هنا، أو اختار من الأزرار":"Drop an image here, or use the buttons",
+const EN={"راجع الأرقام وأرقام التليفونات بعينك قبل ما تعتمد الملف، خصوصًا لو الصورة من الموبايل.":"Please check numbers and phone numbers by eye before relying on the file, especially for phone photos.","الصورة":"Image","اسحب صورة هنا، أو اختار من الأزرار":"Drop an image here, or use the buttons",
 "📷 صوّر بالكاميرا":"📷 Take a photo","🖼️ اختار صورة أو PDF":"🖼️ Choose image or PDF","🎥 كاميرا مباشرة":"🎥 Live camera",
 "التقط":"Capture","إغلاق":"Close","تجهيز الصورة والقراءة":"Prepare and read","↺ لف يسار":"↺ Rotate left","↻ لف يمين":"↻ Rotate right",
 "لغة الورقة":"Paper language","عربي + إنجليزي":"Arabic + English","إنجليزي":"English","عربي":"Arabic",
