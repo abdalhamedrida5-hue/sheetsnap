@@ -781,7 +781,7 @@ async function buildXlsx(){
   XLSX.utils.book_append_sheet(wb,ws,'Sheet1');
   let out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
   try{ /* freeze the header row: add a pane to the sheet view */
-    if(hi>=0&&hi<=3&&window.JSZip){   // freeze only a header near the top; with a long details block above it, freezing would eat the screen
+    if(hi>=0&&hi<=6&&window.JSZip){   // freeze only a header near the top; with a long details block above it, freezing would eat the screen
       const z=await JSZip.loadAsync(out),f=z.file('xl/worksheets/sheet1.xml');
       let x=await f.async('string');
       const pane=`<pane ySplit="${hi+1}" topLeftCell="A${hi+2}" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft"/>`;
