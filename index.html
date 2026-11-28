@@ -25,6 +25,15 @@ button,.btn{font:inherit;cursor:pointer;border:1px solid var(--line);background:
 button:hover,.btn:hover{border-color:#456583}
 button.pri{background:var(--ac);border-color:var(--ac);color:#06251c;font-weight:700}
 button.pri:hover{background:var(--ac2)}
+.fi{width:26px;height:26px;flex:none;border-radius:6px}
+.fmt{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:4px 0 14px}
+.fmtl{font-weight:700}
+.fmtb{padding:8px 16px;gap:10px;font-weight:700;border:2px solid var(--line);font-size:16px}
+.fmtb .fi{width:34px;height:34px;border-radius:8px}
+.fmtb.on{border-color:var(--ac);background:#1b2c38;box-shadow:0 0 0 2px rgba(0,0,0,.2)}
+#fmtW.on{border-color:#4f8de0}
+#dl.hl,#dlw.hl{outline:3px solid #fff;outline-offset:2px;order:-1}
+#dl:not(.hl),#dlw:not(.hl){background:#203042;border-color:var(--line);color:var(--tx);font-weight:400}
 button:disabled{opacity:.5;cursor:not-allowed}
 .small{padding:6px 10px;font-size:13px;border-radius:8px}
 input[type=file]{display:none}
@@ -72,6 +81,11 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:30px}
 
 <div class="card">
   <h2><span class="num">1</span> الصورة</h2>
+  <div class="fmt" id="fmtBox">
+    <span class="fmtl">عاوز الناتج:</span>
+    <button type="button" class="fmtb on" id="fmtX" aria-pressed="true"><svg class="fi" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="8" fill="#1d6f42"/><rect x="17" y="8" width="18" height="24" rx="2" fill="#fff" opacity=".18"/><path d="M9 11h8l3 5.5 3-5.5h8l-7 9.5 7.5 10.5h-8.2L20 24.8 16.2 31H8l7.5-10.5z" fill="#fff"/></svg><span>Excel</span></button>
+    <button type="button" class="fmtb" id="fmtW" aria-pressed="false"><svg class="fi" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="8" fill="#2b579a"/><rect x="17" y="8" width="18" height="24" rx="2" fill="#fff" opacity=".18"/><path d="M6 12h6l3 11 4-11h3l4 11 3-11h6l-6.5 17h-4L20 19.5 16.5 29h-4z" fill="#fff"/></svg><span>Word</span></button>
+  </div>
   <div class="hint" id="trialBanner" style="font-weight:700">نسخة تجريبية: صفحتين مجانًا في اليوم.</div>
   <div class="drop" id="drop">
     <div>اسحب صورة هنا، أو اختار من الأزرار</div>
@@ -134,8 +148,8 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:30px}
   <div class="tablewrap"><table id="tbl"></table></div>
   <div class="hint">اضغط على أي خلية وعدّلها. "ادمج الصف" بيشتغل على آخر خلية اخترتها.</div>
   <div class="btns" style="justify-content:flex-start;margin-top:14px">
-    <button class="pri" id="dl" type="button">⬇️ نزّل Excel (.xlsx)</button>
-    <button class="pri" id="dlw" type="button">⬇️ نزّل Word (.docx)</button>
+    <button class="pri" id="dl" type="button"><svg class="fi" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="8" fill="#1d6f42"/><rect x="17" y="8" width="18" height="24" rx="2" fill="#fff" opacity=".18"/><path d="M9 11h8l3 5.5 3-5.5h8l-7 9.5 7.5 10.5h-8.2L20 24.8 16.2 31H8l7.5-10.5z" fill="#fff"/></svg><span>⬇️ نزّل Excel (.xlsx)</span></button>
+    <button class="pri" id="dlw" type="button"><svg class="fi" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="8" fill="#2b579a"/><rect x="17" y="8" width="18" height="24" rx="2" fill="#fff" opacity=".18"/><path d="M6 12h6l3 11 4-11h3l4 11 3-11h6l-6.5 17h-4L20 19.5 16.5 29h-4z" fill="#fff"/></svg><span>⬇️ نزّل Word (.docx)</span></button>
     <button id="csv" type="button">نزّل CSV</button>
     <button id="copy" type="button">انسخ للحافظة</button>
   </div>
@@ -839,6 +853,11 @@ async function buildDocx(){
   return await z.generateAsync({type:'uint8array',compression:'DEFLATE'});
 }
 window.__buildDocx=buildDocx;
+let outFmt='x';try{outFmt=localStorage.getItem('ss_out')==='w'?'w':'x'}catch(e){}
+function setFmt(f){outFmt=f;try{localStorage.setItem('ss_out',f)}catch(e){}
+  [['fmtX','x'],['fmtW','w']].forEach(([id,k])=>{const b=$(id);b.classList.toggle('on',f===k);b.setAttribute('aria-pressed',f===k?'true':'false')});
+  $('dl').classList.toggle('hl',f==='x');$('dlw').classList.toggle('hl',f==='w')}
+$('fmtX').onclick=()=>setFmt('x');$('fmtW').onclick=()=>setFmt('w');setFmt(outFmt);
 $('dlw').onclick=async()=>{const out=await buildDocx();saveBlob(new Blob([out],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}),`scan-${stamp()}.docx`)};
 
 $('dl').onclick=async()=>{const out=await buildXlsx();saveBlob(new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),`scan-${stamp()}.xlsx`)};
@@ -862,7 +881,7 @@ const EN={"الصورة":"Image","اسحب صورة هنا، أو اختار م�
 "راجع وعدّل وصدّر":"Review, edit, export","حساسية الأعمدة":"Column sensitivity","الورقة من اليمين لليسار":"Paper is right-to-left","حوّل الأرقام لأرقام فعلية":"Convert numbers to real numbers","شكل الأرقام:":"Digits:","1 2 3 (إنجليزي)":"1 2 3 (Western)","١ ٢ ٣ (عربي)":"١ ٢ ٣ (Arabic-Indic)",
 "+ صف":"+ Row","+ عمود":"+ Column","− آخر صف":"− Last row","− آخر عمود":"− Last column","ادمج الصف مع اللي فوقه":"Merge row into the one above",
 "اضغط على أي خلية وعدّلها. \"ادمج الصف\" بيشتغل على آخر خلية اخترتها.":"Click any cell to edit. \"Merge row\" works on the row of the last cell you selected.",
-"⬇️ نزّل Excel (.xlsx)":"⬇️ Download Excel (.xlsx)","⬇️ نزّل Word (.docx)":"⬇️ Download Word (.docx)","نزّل CSV":"Download CSV","انسخ للحافظة":"Copy to clipboard","النص الخام اللي اتقرأ":"Raw text that was read",
+"عاوز الناتج:":"Output:","⬇️ نزّل Excel (.xlsx)":"⬇️ Download Excel (.xlsx)","⬇️ نزّل Word (.docx)":"⬇️ Download Word (.docx)","نزّل CSV":"Download CSV","انسخ للحافظة":"Copy to clipboard","النص الخام اللي اتقرأ":"Raw text that was read",
 "في مصر بالجنيه: 149 جنيه / شهر أو 1,199 جنيه / سنة (اشتراك بالكارت). ولو هتدفع بمحفظة موبايل أو كاش: باقة مدفوعة مقدمًا بنفس السعر بدون تجديد تلقائي.":"In Egypt, in EGP: 149 EGP / month or 1,199 EGP / year (card subscription). Paying by mobile wallet or cash: prepaid pass at the same price, no auto-renewal.",
 "جنيه / شهر":"EGP / month","أو 1,199 جنيه في السنة (اشتراك بالكارت). لو هتدفع بمحفظة موبايل أو كاش: باقة مدفوعة مقدمًا بنفس السعر بدون تجديد تلقائي.":"or 1,199 EGP per year (card subscription). Paying by mobile wallet or cash: prepaid pass at the same price, no auto-renewal.",
 "نسخة تجريبية مجانية":"Free trial","تنبيه: في وضع الذكاء الاصطناعي الصورة بتتبعت لـ Google Gemini (مفتاح تجريبي غير مدفوع). استخدم ملفات تجريبية بس، مش فواتير أو مستندات حقيقية.":"Notice: in AI mode the image is uploaded to Google Gemini (unpaid test key). Use sample files only, no real invoices or documents.","نسخة تجريبية: صفحتين مجانًا في اليوم.":"Free trial: 2 pages per day.","صفحتين في اليوم (صورة أو صفحات PDF)":"2 pages per day (image or PDF pages)","القراءة العادية على جهازك والصورة ما بتتبعتش لأي سيرفر":"Standard reading happens on your device; AI reading uploads the page to Google Gemini","دي نسخة تجريبية. الحد بيتجدد كل يوم.":"This is a trial. The limit resets every day.","5 صفحات في اليوم (صورة أو PDF حتى 10 صفحات في المرة)":"5 pages per day (image or PDF, up to 10 pages per run)","قراءة عربي وإنجليزي على جهازك":"Arabic and English reading on your device","تنزيل Excel وCSV":"Excel and CSV export",
