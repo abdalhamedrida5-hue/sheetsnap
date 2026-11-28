@@ -145,6 +145,7 @@ footer{color:var(--mute);font-size:12px;text-align:center;margin-top:30px}
     <button class="small" id="mergeUp" type="button">ادمج الصف مع اللي فوقه</button>
     <span class="tag" id="dims"></span>
   </div>
+  <div id="aiWarn" class="status err" style="display:none">القراءة بالذكاء الاصطناعي مش شغالة دلوقتي (الحد اليومي أو عطل)، فاتقرا بالطريقة العادية وممكن الأعمدة تتلخبط. راجع الجدول قبل ما تنزّله. <button type="button" class="small" id="aiAgain">شغّل الذكاء الاصطناعي تاني</button></div>
   <div class="tablewrap"><table id="tbl"></table></div>
   <div class="hint">اضغط على أي خلية وعدّلها. "ادمج الصف" بيشتغل على آخر خلية اخترتها.</div>
   <div class="btns" style="justify-content:flex-start;margin-top:14px">
@@ -410,11 +411,11 @@ async function aiRead(){
       const ctl=new AbortController();const tid=setTimeout(()=>ctl.abort(),60000);
       let r;
       try{r=await fetch(AI_URL,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({images:batch,doc}),signal:ctl.signal})}
-      catch(err){clearTimeout(tid);$('aiMode').checked=false;status(T('الذكاء الاصطناعي مش متاح دلوقتي. هقرا بالطريقة العادية.'),'err');setTimeout(()=>{try{$('go').click()}catch(e){}},1200);return}
+      catch(err){clearTimeout(tid);$('aiMode').checked=false;aiFell=true;status(T('الذكاء الاصطناعي مش متاح دلوقتي. هقرا بالطريقة العادية.'),'err');setTimeout(()=>{try{$('go').click()}catch(e){}},1200);return}
       clearTimeout(tid);
       if(!r.ok){
         let jj={};try{jj=await r.json()}catch(e){}
-        $('aiMode').checked=false;
+        $('aiMode').checked=false;aiFell=true;
         status(jj.code==='doc_limit'?T('وصلت للحد اليومي للذكاء الاصطناعي (3 مستندات). هقرا بالطريقة العادية دلوقتي.'):T('الذكاء الاصطناعي مش متاح دلوقتي. هقرا بالطريقة العادية.'),'err');
         setTimeout(()=>{try{$('go').click()}catch(e){}},1200);return;
       }
@@ -458,6 +459,7 @@ async function aiRead(){
     else{const w=Math.max(grid[0]?.length||0,finalRows[0]?.length||0);
       const pad=r=>{const x=r.slice();while(x.length<w)x.push('');return x};
       grid=grid.map(pad).concat(finalRows.map(pad));layout=null}
+    aiFell=false;$('aiWarn').style.display='none';
     cache={replace:true};render();$('stepOut').style.display='';bump();meter();
     $('stepOut').scrollIntoView({behavior:'smooth'});
     status(LANG==='en'?`Done: ${grid.length} rows from ${total} page${total>1?'s':''}.`:`تمام: ${grid.length} صف من ${total} صفحة.`,'ok');
@@ -663,6 +665,7 @@ function buildGrid(replace){
 }
 ['gap','rtl'].forEach(id=>$(id).addEventListener('change',()=>{if(words.length){buildGrid(true)}}));
 $('nums').addEventListener('change',render);
+$('aiAgain').onclick=()=>{$('aiMode').checked=true;aiFell=false;$('aiWarn').style.display='none';status(T('الذكاء الاصطناعي اتشغل تاني. اضغط حوّل لجدول.'),'ok')};
 try{const sd=localStorage.getItem('ss_digits');if(sd==='ar'||sd==='en')$('digits').value=sd}catch(e){}
 $('digits').addEventListener('change',()=>{try{localStorage.setItem('ss_digits',$('digits').value)}catch(e){}render()});
 /* one digit style for the whole sheet: all Western (real numbers stay numbers) or all Arabic-Indic (text) */
@@ -673,7 +676,7 @@ function dg(v){
 }
 
 /* ---------- editable table ---------- */
-let layout=null;   // {t0,t1}: rows of the real table inside the sheet (details above, footer below)
+let layout=null;let aiFell=false;   // {t0,t1}: rows of the real table inside the sheet (details above, footer below)
 function normDigits(s){return s.replace(/[\u0660-\u0669]/g,d=>d.charCodeAt(0)-0x660).replace(/[\u06F0-\u06F9]/g,d=>d.charCodeAt(0)-0x6F0).replace(/\u066B/g,'.').replace(/\u066C/g,',')}
 function asNum(s){
   if(!$('nums').checked||$('digits').value==='ar')return null;   // Arabic-Indic digits are written as text
@@ -686,6 +689,7 @@ function asNum(s){
   return null;
 }
 function render(){
+  $('aiWarn').style.display=aiFell?'':'none';
   const t=$('tbl');t.innerHTML='';
   const W=Math.max(0,...grid.map(r=>r.length));
   const hr=document.createElement('tr');hr.innerHTML='<th></th>'+Array.from({length:W},(_,i)=>`<th>${colName(i)}</th>`).join('');
@@ -815,8 +819,9 @@ async function buildDocx(){
   const nR=rows.length,W=Math.max(1,...rows.map(r=>r.length));
   const t0=(layout&&layout.t0<nR)?layout.t0:0,t1=(layout&&layout.t0<nR)?Math.min(layout.t1,nR):nR;
   const font='<w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial" w:eastAsia="Arial"/>';
+  let SZ=22;
   const run=(t,b)=>{t=String(t);if(t==='')return '';if(rtl&&!AR_.test(t))t='\u200E'+t;   // keep Latin/number cells in reading order inside an RTL page
-    return `<w:r><w:rPr>${font}${b?'<w:b/><w:bCs/>':''}${AR_.test(t)?'<w:rtl/>':''}<w:sz w:val="22"/><w:szCs w:val="22"/><w:lang w:val="en-US" w:bidi="ar-EG"/></w:rPr><w:t xml:space="preserve">${xmlEsc(t)}</w:t></w:r>`};
+    return `<w:r><w:rPr>${font}${b?'<w:b/><w:bCs/>':''}${AR_.test(t)?'<w:rtl/>':''}<w:sz w:val="${SZ}"/><w:szCs w:val="${SZ}"/><w:lang w:val="en-US" w:bidi="ar-EG"/></w:rPr><w:t xml:space="preserve">${xmlEsc(t)}</w:t></w:r>`};
   const para=(inner,jc,extra)=>`<w:p><w:pPr>${rtl?'<w:bidi/>':''}<w:spacing w:before="40" w:after="40"/>${jc?`<w:jc w:val="${jc}"/>`:''}${extra||''}</w:pPr>${inner}</w:p>`;
   const textBlock=(a,b)=>{let x='';for(let i=a;i<b;i++){const c=rows[i].map(v=>String(v).trim()).filter(Boolean);if(!c.length)continue;
       x+=c.length>=2?para(run(c[0]+': ',true)+run(c.slice(1).join('  '))):para(run(c[0]))}return x};
@@ -825,17 +830,23 @@ async function buildDocx(){
   const pageW=land?16838:11906,usable=pageW-2*720;
   let tbl='';
   if(t1>t0){
-    const cw=Math.floor(usable/cols);
+    SZ=cols>8?18:(cols>5?20:22);   // smaller text for wide tables
+    /* column width follows the content: longest cell in the column (capped), so long item names get room and small numbers stay narrow */
+    const wt=Array.from({length:cols},(_,c)=>{let m=3;for(let i=t0;i<t1;i++){const v=String(rows[i][c]??'');const L=Math.max(...v.split(/\s+/).map(x=>x.length),0),T=v.length;m=Math.max(m,Math.min(Math.max(L,Math.min(T,28)*0.6),30))}return m});
+    const sumw=wt.reduce((a,b)=>a+b,0),minW=Math.min(900,Math.floor(usable/cols));
+    let cws=wt.map(x=>Math.max(minW,Math.floor(usable*x/sumw)));const over=cws.reduce((a,b)=>a+b,0)-usable;
+    if(over>0){const big=cws.indexOf(Math.max(...cws));cws[big]-=over}
+    const cw=cws[0];
     const hdr=(()=>{ /* first row of the table is the header when a numeric row follows */
       const isN=v=>/^[-+]?\d[\d,.]*$/.test(String(v).trim());return rows[t0]&&rows[t0].filter(v=>String(v).trim()).length>=2&&rows[t0].filter(isN).length===0&&(rows[t0+1]||[]).some(isN)})();
     tbl=`<w:tbl><w:tblPr><w:tblW w:w="${usable}" w:type="dxa"/>${rtl?'<w:bidiVisual/>':''}<w:tblBorders>`
       +['top','left','bottom','right','insideH','insideV'].map(k=>`<w:${k} w:val="single" w:sz="4" w:space="0" w:color="808080"/>`).join('')
-      +`</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="60" w:type="dxa"/><w:right w:w="60" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${Array.from({length:cols},()=>`<w:gridCol w:w="${cw}"/>`).join('')}</w:tblGrid>`;
+      +`</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="60" w:type="dxa"/><w:right w:w="60" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${cws.map(x=>`<w:gridCol w:w="${x}"/>`).join('')}</w:tblGrid>`;
     for(let i=t0;i<t1;i++){
       const isH=hdr&&i===t0;
       tbl+=`<w:tr><w:trPr><w:cantSplit/>${isH?'<w:tblHeader/>':''}</w:trPr>`;
       for(let c=0;c<cols;c++){
-        tbl+=`<w:tc><w:tcPr><w:tcW w:w="${cw}" w:type="dxa"/>${isH?'<w:shd w:val="clear" w:color="auto" w:fill="D9D9D9"/>':''}<w:vAlign w:val="center"/></w:tcPr>${para(run(rows[i][c]??'',isH),'center')}</w:tc>`;
+        tbl+=`<w:tc><w:tcPr><w:tcW w:w="${cws[c]}" w:type="dxa"/>${isH?'<w:shd w:val="clear" w:color="auto" w:fill="D9D9D9"/>':''}<w:vAlign w:val="center"/></w:tcPr>${para(run(rows[i][c]??'',isH),'center')}</w:tc>`;
       }
       tbl+='</w:tr>';
     }
@@ -881,7 +892,7 @@ const EN={"الصورة":"Image","اسحب صورة هنا، أو اختار م�
 "راجع وعدّل وصدّر":"Review, edit, export","حساسية الأعمدة":"Column sensitivity","الورقة من اليمين لليسار":"Paper is right-to-left","حوّل الأرقام لأرقام فعلية":"Convert numbers to real numbers","شكل الأرقام:":"Digits:","1 2 3 (إنجليزي)":"1 2 3 (Western)","١ ٢ ٣ (عربي)":"١ ٢ ٣ (Arabic-Indic)",
 "+ صف":"+ Row","+ عمود":"+ Column","− آخر صف":"− Last row","− آخر عمود":"− Last column","ادمج الصف مع اللي فوقه":"Merge row into the one above",
 "اضغط على أي خلية وعدّلها. \"ادمج الصف\" بيشتغل على آخر خلية اخترتها.":"Click any cell to edit. \"Merge row\" works on the row of the last cell you selected.",
-"عاوز الناتج:":"Output:","⬇️ نزّل Excel (.xlsx)":"⬇️ Download Excel (.xlsx)","⬇️ نزّل Word (.docx)":"⬇️ Download Word (.docx)","نزّل CSV":"Download CSV","انسخ للحافظة":"Copy to clipboard","النص الخام اللي اتقرأ":"Raw text that was read",
+"عاوز الناتج:":"Output:","القراءة بالذكاء الاصطناعي مش شغالة دلوقتي (الحد اليومي أو عطل)، فاتقرا بالطريقة العادية وممكن الأعمدة تتلخبط. راجع الجدول قبل ما تنزّله.":"AI reading is not available right now (daily limit or an error), so the page was read the standard way and columns may be off. Check the table before you download it.","شغّل الذكاء الاصطناعي تاني":"Turn AI reading back on","الذكاء الاصطناعي اتشغل تاني. اضغط حوّل لجدول.":"AI reading is back on. Press Convert to table.","⬇️ نزّل Excel (.xlsx)":"⬇️ Download Excel (.xlsx)","⬇️ نزّل Word (.docx)":"⬇️ Download Word (.docx)","نزّل CSV":"Download CSV","انسخ للحافظة":"Copy to clipboard","النص الخام اللي اتقرأ":"Raw text that was read",
 "في مصر بالجنيه: 149 جنيه / شهر أو 1,199 جنيه / سنة (اشتراك بالكارت). ولو هتدفع بمحفظة موبايل أو كاش: باقة مدفوعة مقدمًا بنفس السعر بدون تجديد تلقائي.":"In Egypt, in EGP: 149 EGP / month or 1,199 EGP / year (card subscription). Paying by mobile wallet or cash: prepaid pass at the same price, no auto-renewal.",
 "جنيه / شهر":"EGP / month","أو 1,199 جنيه في السنة (اشتراك بالكارت). لو هتدفع بمحفظة موبايل أو كاش: باقة مدفوعة مقدمًا بنفس السعر بدون تجديد تلقائي.":"or 1,199 EGP per year (card subscription). Paying by mobile wallet or cash: prepaid pass at the same price, no auto-renewal.",
 "نسخة تجريبية مجانية":"Free trial","تنبيه: في وضع الذكاء الاصطناعي الصورة بتتبعت لـ Google Gemini (مفتاح تجريبي غير مدفوع). استخدم ملفات تجريبية بس، مش فواتير أو مستندات حقيقية.":"Notice: in AI mode the image is uploaded to Google Gemini (unpaid test key). Use sample files only, no real invoices or documents.","نسخة تجريبية: صفحتين مجانًا في اليوم.":"Free trial: 2 pages per day.","صفحتين في اليوم (صورة أو صفحات PDF)":"2 pages per day (image or PDF pages)","القراءة العادية على جهازك والصورة ما بتتبعتش لأي سيرفر":"Standard reading happens on your device; AI reading uploads the page to Google Gemini","دي نسخة تجريبية. الحد بيتجدد كل يوم.":"This is a trial. The limit resets every day.","5 صفحات في اليوم (صورة أو PDF حتى 10 صفحات في المرة)":"5 pages per day (image or PDF, up to 10 pages per run)","قراءة عربي وإنجليزي على جهازك":"Arabic and English reading on your device","تنزيل Excel وCSV":"Excel and CSV export",
